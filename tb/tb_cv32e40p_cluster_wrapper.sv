@@ -31,7 +31,7 @@ module tb_cv32e40p_cluster_wrapper #(
     //  Alignment check on SPM_BASE_ADDR
     // ----------------------------------------------------------------
     initial begin : spm_align_check
-        if ((SPM_BASE_ADDR & (SPM_END_ADDR - SPM_BASE_ADDR - 1)) != 0)
+        if ((SPM_BASE_ADDR & ((NUM_CORES << SPM_ADDR_WIDTH) - 1)) != 0)
             $fatal(1, "[CLUSTER] SPM_BASE_ADDR must be aligned to NUM_CORES * 2**SPM_ADDR_WIDTH");
     end
 

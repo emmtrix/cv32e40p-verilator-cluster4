@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include "cluster_sync.h"
 
-static volatile uint32_t test_result;
+static volatile uint32_t core_result[NUM_CORES];
 static cl_barrier_t bar;
 
 int main(void) {
@@ -22,7 +22,8 @@ int main(void) {
     /* --- initialisation (core 0 only) --- */
     if (hart == 0u) {
         cl_barrier_init(&bar);
-        test_result = 0u;
+        for (uint32_t i = 0; i < NUM_CORES; i++)
+            core_result[i] = 0u;
         cl_fence();
     }
 
@@ -46,7 +47,7 @@ int main(void) {
         if (got != expected) {
             printf("Core %u: FAIL spm[%u][%u] got 0x%08x exp 0x%08x\n",
                    hart, neighbor, i, got, expected);
-            test_result = 1u;
+            core_result[hart] = 1u;
         }
     }
 
@@ -54,11 +55,14 @@ int main(void) {
 
     /* --- Phase 3: report --- */
     if (hart == 0u) {
-        if (test_result == 0u)
+        uint32_t fail = 0u;
+        for (uint32_t i = 0; i < NUM_CORES; i++)
+            fail |= core_result[i];
+        if (fail == 0u)
             puts("SCRATCHPAD DEMO PASS");
         else
             puts("SCRATCHPAD DEMO FAIL");
-        return (int)test_result;
+        return (int)fail;
     }
     return 0;
 }
