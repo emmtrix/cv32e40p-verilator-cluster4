@@ -43,7 +43,8 @@ SV_TB_SRCS := \
 	tb/tb_riscv/riscv_rvalid_stall.sv \
 	tb/tb_riscv/riscv_gnt_stall.sv \
 	tb/mm_ram.sv \
-	tb/dp_ram.sv
+	tb/dp_ram.sv \
+	tb/scratchpad_ram.sv
 
 CPP_TB_SRC := $(abspath tb/tb_top_verilator.cpp)
 SIM_EXE := $(VERI_OBJ_DIR)/Vtb_top_verilator

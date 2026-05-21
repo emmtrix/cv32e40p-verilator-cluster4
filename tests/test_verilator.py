@@ -64,7 +64,9 @@ def test_verilator_build() -> None:
         ("shared-memory-demo", "SHARED MEM DEMO PASS sum=10", None),
         ("reduction-demo", "REDUCTION DEMO PASS", None),
         ("tiled-matmul-demo", "TILED MATMUL DEMO PASS", None),
+        ("scratchpad-demo", "SCRATCHPAD DEMO PASS", None),
         ("barrier-skew-demo", "BARRIER SKEW DEMO PASS", "5000000"),
+        ("latency-test", "LATENCY TEST PASS", None),
     ],
 )
 def test_example_applications_pass(app: str, expected_pass_marker: str, maxcycles: str | None) -> None:
@@ -75,3 +77,23 @@ def test_example_applications_pass(app: str, expected_pass_marker: str, maxcycle
     output = result.stdout + result.stderr
     assert expected_pass_marker in output
     assert "[TB] CLUSTER EXIT SUCCESS" in output
+
+
+def test_latency_scratchpad_faster_than_shared() -> None:
+    """Verify that measured scratchpad cycles < shared-memory cycles."""
+    import re
+
+    result = run_make("APP=latency-test", "run")
+    output = result.stdout + result.stderr
+
+    assert "LATENCY TEST PASS" in output
+
+    m = re.search(r"spm_cycles=(\d+)\s+shared_cycles=(\d+)", output)
+    assert m is not None, f"Could not parse cycle counts from output:\n{output}"
+
+    spm_cycles = int(m.group(1))
+    shared_cycles = int(m.group(2))
+
+    assert spm_cycles < shared_cycles, (
+        f"Scratchpad ({spm_cycles}) should be faster than shared memory ({shared_cycles})"
+    )
