@@ -11,7 +11,7 @@
  * Scratchpad memory (SPM) address helpers.
  * SPM_SIZE must match the RTL parameter 2**SPM_ADDR_WIDTH (default 4 KB).
  */
-#define SPM_BASE_ADDR  0x10000000u
+#define SPM_BASE_ADDR  0x18000000u
 #define SPM_SIZE       4096u
 #define SPM_ADDR(core_id)  (SPM_BASE_ADDR + (uint32_t)(core_id) * SPM_SIZE)
 #define SPM_PTR(core_id)   ((volatile uint32_t *)SPM_ADDR(core_id))

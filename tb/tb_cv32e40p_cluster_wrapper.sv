@@ -6,7 +6,7 @@ module tb_cv32e40p_cluster_wrapper #(
     parameter logic [31:0] DM_HALTADDRESS = 32'h1A110800,
     // ---- scratchpad parameters ----
     parameter int unsigned SPM_ADDR_WIDTH = 12,              // bytes per scratchpad (2^12 = 4 KB)
-    parameter logic [31:0] SPM_BASE_ADDR  = 32'h1000_0000,   // base of the SPM window
+    parameter logic [31:0] SPM_BASE_ADDR  = 32'h1800_0000,   // base of the SPM window
     parameter int unsigned SHARED_MEM_EXTRA_LATENCY = 2       // extra cycles on shared-mem data rvalid
 ) (
     input  logic clk_i,

@@ -4,7 +4,7 @@ module tb_top_verilator #(
     parameter BOOT_ADDR = 32'h00000080,
     parameter NUM_CORES = 4,
     parameter SPM_ADDR_WIDTH = 12,
-    parameter SPM_BASE_ADDR = 32'h1000_0000,
+    parameter SPM_BASE_ADDR = 32'h1800_0000,
     parameter SHARED_MEM_EXTRA_LATENCY = 2
 ) (
     input logic clk_i,
