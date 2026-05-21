@@ -22,6 +22,14 @@ git submodule update --init --recursive
 make run
 ```
 
+## Pytest
+
+The repository includes a pytest-based smoke test that builds the Verilator model and runs the example applications in `sw/`:
+
+```sh
+pytest -v
+```
+
 Default app expected output includes:
 
 - `SHARED MEM DEMO PASS sum=10`
