@@ -24,7 +24,7 @@ make run
 
 ## Pytest
 
-The repository includes a pytest-based integration test that builds the Verilator model and runs demo firmware:
+The repository includes a pytest-based smoke test that builds the Verilator model and checks the simulator entry path:
 
 ```sh
 pytest -v

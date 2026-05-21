@@ -7,9 +7,6 @@ on:
 jobs:
   verilator-pytest:
     runs-on: ubuntu-latest
-    env:
-      TOOLCHAIN_ROOT: /usr
-      RISCV_PREFIX: riscv64-unknown-elf-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -19,7 +16,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y verilator gcc-riscv64-unknown-elf python3-pytest
+          sudo apt-get install -y verilator python3-pytest
 
       - name: Build Verilator model
         run: make verilate
