@@ -64,6 +64,7 @@ def test_verilator_build() -> None:
         ("shared-memory-demo", "SHARED MEM DEMO PASS sum=10", None),
         ("reduction-demo", "REDUCTION DEMO PASS", None),
         ("tiled-matmul-demo", "TILED MATMUL DEMO PASS", None),
+        ("scratchpad-demo", "SCRATCHPAD DEMO PASS", None),
         ("barrier-skew-demo", "BARRIER SKEW DEMO PASS", "5000000"),
     ],
 )
