@@ -19,7 +19,16 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y verilator python3-pytest
+          sudo apt-get install -y \
+            verilator \
+            python3-pytest
+
+      - name: Install CORE-V toolchain
+        run: |
+          wget -q https://buildbot.embecosm.com/job/corev-gcc-ubuntu2204/47/artifact/corev-openhw-gcc-ubuntu2204-20240530.tar.gz -O /tmp/corev-openhw-gcc.tar.gz
+          sudo mkdir -p /opt/corev
+          sudo tar -xzf /tmp/corev-openhw-gcc.tar.gz -C /opt/corev --strip-components=1
+          /opt/corev/bin/riscv32-corev-elf-gcc --version
 
       - name: Run pytest
         run: pytest -v

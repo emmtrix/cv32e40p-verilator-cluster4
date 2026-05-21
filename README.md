@@ -24,7 +24,7 @@ make run
 
 ## Pytest
 
-The repository includes a pytest-based smoke test that builds the Verilator model and checks the simulator entry path:
+The repository includes a pytest-based smoke test that builds the Verilator model and runs the example applications in `sw/`:
 
 ```sh
 pytest -v
