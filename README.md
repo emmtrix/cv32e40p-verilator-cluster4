@@ -2,7 +2,7 @@
 
 This directory is a standalone Verilator flow for a 4-core CV32E40P cluster.
 
-- It uses RTL directly from `../cv32e40p`.
+- It uses RTL directly from the `cv32e40p` git submodule.
 - It runs a shared-memory demonstration program (`shared-memory-demo.c`).
 - It does not invoke `core-v-verif` Makefiles.
 - It instantiates 4 CV32E40P cores (`hart_id = 0..3`) in a cluster-style topology inspired by `pulp_cluster`.
@@ -18,6 +18,7 @@ This directory is a standalone Verilator flow for a 4-core CV32E40P cluster.
 
 ```sh
 cd cv32e40p-verilator-cluster4
+git submodule update --init --recursive
 make run
 ```
 

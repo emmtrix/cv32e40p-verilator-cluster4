@@ -1,5 +1,5 @@
 ROOT_DIR := $(abspath .)
-CV32E40P_DIR ?= ../cv32e40p
+CV32E40P_DIR ?= cv32e40p
 RTL_DIR := $(abspath $(CV32E40P_DIR)/rtl)
 MANIFEST := $(CV32E40P_DIR)/cv32e40p_manifest.flist
 
