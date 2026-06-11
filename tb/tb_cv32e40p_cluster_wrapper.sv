@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2024 emmtrix Technologies GmbH
+// SPDX-License-Identifier: Apache-2.0
+
 module tb_cv32e40p_cluster_wrapper #(
     parameter int unsigned NUM_CORES = 4,
     parameter int unsigned INSTR_RDATA_WIDTH = 32,

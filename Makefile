@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2024 emmtrix Technologies GmbH
+# SPDX-License-Identifier: Apache-2.0
+
 ROOT_DIR := $(abspath .)
 CV32E40P_DIR ?= cv32e40p
 RTL_DIR := $(abspath $(CV32E40P_DIR)/rtl)

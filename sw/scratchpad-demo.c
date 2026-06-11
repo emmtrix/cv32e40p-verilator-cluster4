@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2024 emmtrix Technologies GmbH
+// SPDX-License-Identifier: Apache-2.0
+
 /*
  * scratchpad-demo.c – validates local and remote scratchpad access.
  *

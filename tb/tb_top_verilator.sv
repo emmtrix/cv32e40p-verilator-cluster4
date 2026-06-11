@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2024 emmtrix Technologies GmbH
+// SPDX-License-Identifier: Apache-2.0
+
 module tb_top_verilator #(
     parameter INSTR_RDATA_WIDTH = 32,
     parameter RAM_ADDR_WIDTH = 22,
