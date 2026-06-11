@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2024 emmtrix Technologies GmbH
+// SPDX-License-Identifier: Apache-2.0
+
 #ifndef CLUSTER_SYNC_H
 #define CLUSTER_SYNC_H
 

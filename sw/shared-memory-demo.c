@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2024 emmtrix Technologies GmbH
+// SPDX-License-Identifier: Apache-2.0
+
 #include <stdio.h>
 #include <stdint.h>
 #include "cluster_sync.h"

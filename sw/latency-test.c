@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2024 emmtrix Technologies GmbH
+// SPDX-License-Identifier: Apache-2.0
+
 /*
  * latency-test.c – measures cycle cost of scratchpad vs shared-memory accesses.
  *

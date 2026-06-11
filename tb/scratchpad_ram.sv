@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2024 emmtrix Technologies GmbH
+// SPDX-License-Identifier: Apache-2.0
+
 // Single-port scratchpad SRAM with byte-enable writes.
 // Runs at core clock frequency; one read or write per cycle.
 // Read data is registered and available the cycle after en_i is asserted.

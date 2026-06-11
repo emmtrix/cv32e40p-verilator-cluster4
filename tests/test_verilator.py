@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2024 emmtrix Technologies GmbH
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 import shutil
 import subprocess
