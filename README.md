@@ -5,8 +5,9 @@ A standalone testbench for a 4-core CV32E40P cluster.
 ![Arch](arch.svg)
 
 - 4 CV32E40P cores
-- 4MB Shared Memory
-- Each core has a 4kB scratchpad memory, each scratchpad memory is accessible by all cores
+- 4MB Shared Memory, > 2 Cycle Latency
+- Each core has a 4kB scratchpad memory, 1 Cycle Latency
+- Each scratchpad memory is accessible by all cores
 
 ## Prerequisites
 
