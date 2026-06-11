@@ -1,13 +1,12 @@
 # CV32E40P 4-Core Standalone Verilator Testbench
 
-This directory is a standalone Verilator flow for a 4-core CV32E40P cluster.
+A standalone testbench for a 4-core CV32E40P cluster.
 
-- It uses RTL directly from the `cv32e40p` git submodule.
-- It runs a shared-memory demonstration program (`shared-memory-demo.c`).
-- It does not invoke `core-v-verif` Makefiles.
-- It instantiates 4 CV32E40P cores (`hart_id = 0..3`) in a cluster-style topology inspired by `pulp_cluster`.
-- All 4 cores share one memory subsystem (single `mm_ram` / `dp_ram`), arbitrated across core instruction and data buses.
-- It uses an EU-style event/barrier flow in `sw/cluster_sync.h` backed by a testbench pseudo-peripheral in `tb/mm_ram.sv` (SDK-like `barrier_notify -> evt_wait -> gpevt_clear`, without pulling in pulp-sdk headers).
+![Arch](arch.svg)
+
+- 4 CV32E40P cores
+- 4MB Shared Memory
+- Each core has a 4kB scratchpad memory, each scratchpad memory is accessible by all cores
 
 ## Prerequisites
 
