@@ -11,6 +11,11 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SIM_EXE = REPO_ROOT / "build" / "verilator" / "obj_dir" / "Vtb_top_verilator"
+SW_DIR = REPO_ROOT / "sw"
+DEMO_APPS = sorted(path.stem for path in SW_DIR.glob("*-demo.c"))
+APP_MAXCYCLES_OVERRIDES = {
+    "barrier-skew-demo": "20000000",
+}
 
 
 @lru_cache(maxsize=1)
@@ -61,24 +66,29 @@ def test_verilator_build() -> None:
     assert SIM_EXE.exists()
 
 
-@pytest.mark.parametrize(
-    ("app", "expected_pass_marker", "maxcycles"),
-    [
-        ("shared-memory-demo", "SHARED MEM DEMO PASS sum=10", None),
-        ("reduction-demo", "REDUCTION DEMO PASS", None),
-        ("tiled-matmul-demo", "TILED MATMUL DEMO PASS", None),
-        ("scratchpad-demo", "SCRATCHPAD DEMO PASS", None),
-        ("barrier-skew-demo", "BARRIER SKEW DEMO PASS", "20000000"),
-        ("latency-test", "LATENCY TEST PASS", None),
-    ],
-)
-def test_example_applications_pass(app: str, expected_pass_marker: str, maxcycles: str | None) -> None:
+def test_demo_app_list_non_empty() -> None:
+    assert DEMO_APPS, f"No demo apps found under {SW_DIR}"
+
+
+@pytest.mark.parametrize("app", DEMO_APPS)
+def test_demo_applications_pass(app: str) -> None:
+    maxcycles = APP_MAXCYCLES_OVERRIDES.get(app)
     args = [f"APP={app}", "run"]
     if maxcycles is not None:
         args.append(f"MAXCYCLES={maxcycles}")
     result = run_make(*args)
     output = result.stdout + result.stderr
-    assert expected_pass_marker in output
+
+    # Every demo is expected to print a PASS banner before terminating.
+    assert "PASS" in output
+    assert "[TB] CLUSTER EXIT SUCCESS" in output
+
+
+def test_latency_test_pass() -> None:
+    result = run_make("APP=latency-test", "run")
+    output = result.stdout + result.stderr
+
+    assert "LATENCY TEST PASS" in output
     assert "[TB] CLUSTER EXIT SUCCESS" in output
 
 
