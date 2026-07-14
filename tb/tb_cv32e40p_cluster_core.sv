@@ -7,7 +7,7 @@ module tb_cv32e40p_cluster_core #(
     parameter int unsigned INSTR_RDATA_WIDTH = 32,
     parameter logic [31:0] BOOT_ADDR = 32'h00000080,
     parameter logic [31:0] DM_HALTADDRESS = 32'h1A110800,
-    parameter int unsigned SPM_ADDR_WIDTH = 12,
+    parameter int unsigned SPM_ADDR_WIDTH = 18,
     parameter logic [31:0] SPM_BASE_ADDR = 32'h1800_0000
 ) (
     input  logic clk_i,

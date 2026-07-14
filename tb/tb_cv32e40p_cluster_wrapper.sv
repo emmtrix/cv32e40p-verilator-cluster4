@@ -4,12 +4,13 @@
 module tb_cv32e40p_cluster_wrapper #(
     parameter int unsigned NUM_CORES = 4,
     parameter int unsigned INSTR_RDATA_WIDTH = 32,
-    parameter int unsigned RAM_ADDR_WIDTH = 22,
+    parameter int unsigned RAM_ADDR_WIDTH = 26,
     parameter logic [31:0] BOOT_ADDR = 32'h00000080,
     parameter logic [31:0] DM_HALTADDRESS = 32'h1A110800,
-    parameter int unsigned SPM_ADDR_WIDTH = 12,
+    parameter int unsigned SPM_ADDR_WIDTH = 18,
     parameter logic [31:0] SPM_BASE_ADDR = 32'h1800_0000,
-    parameter int unsigned SHARED_MEM_EXTRA_LATENCY = 2
+    parameter int unsigned SHARED_MEM_EXTRA_LATENCY = 20,
+    parameter int unsigned REMOTE_SPM_EXTRA_LATENCY = 20
 ) (
     input  logic clk_i,
     input  logic rst_ni,
@@ -30,6 +31,7 @@ module tb_cv32e40p_cluster_wrapper #(
     tb_mem_types_pkg::tb_mem_rsp_t core_shared_rsp_raw [NUM_CORES];
 
     tb_mem_types_pkg::tb_mem_req_t core_remote_req [NUM_CORES];
+    tb_mem_types_pkg::tb_mem_rsp_t core_remote_rsp_raw [NUM_CORES];
     tb_mem_types_pkg::tb_mem_rsp_t core_remote_rsp [NUM_CORES];
 
     logic [NUM_CORES-1:0][CORE_IDX_W-1:0] core_remote_target;
@@ -72,6 +74,10 @@ module tb_cv32e40p_cluster_wrapper #(
     logic                  shared_pipe_valid_out;
     logic [CORE_IDX_W-1:0] shared_pipe_core_out;
     logic [31:0]           shared_pipe_rdata_out;
+
+    logic [NUM_CORES-1:0]        remote_rsp_valid_raw;
+    logic [NUM_CORES-1:0]        remote_pipe_valid_out;
+    logic [NUM_CORES-1:0][31:0]  remote_pipe_rdata_out;
 
     initial begin : checks
         if ((SPM_BASE_ADDR & ((NUM_CORES << SPM_ADDR_WIDTH) - 1)) != 0)
@@ -202,12 +208,33 @@ module tb_cv32e40p_cluster_wrapper #(
         .out_data_o (shared_pipe_rdata_out)
     );
 
+    generate
+        for (g_core = 0; g_core < NUM_CORES; g_core++) begin : remote_data_pipe_gen
+            logic unused_remote_core;
+            tb_shared_latency_pipe #(
+                .EXTRA_LATENCY(REMOTE_SPM_EXTRA_LATENCY),
+                .CORE_IDX_W   (1),
+                .DATA_W       (32)
+            ) remote_data_pipe_i (
+                .clk_i      (clk_i),
+                .rst_ni     (rst_ni),
+                .in_valid_i (remote_rsp_valid_raw[g_core]),
+                .in_core_i  (1'b0),
+                .in_data_i  (core_remote_rsp_raw[g_core].rdata),
+                .out_valid_o(remote_pipe_valid_out[g_core]),
+                .out_core_o (unused_remote_core),
+                .out_data_o (remote_pipe_rdata_out[g_core])
+            );
+        end
+    endgenerate
+
     always_comb begin
         for (int i = 0; i < NUM_CORES; i++) begin
             core_shared_rsp[i] = core_shared_rsp_raw[i];
             core_shared_rsp[i].rvalid = 1'b0;
             core_shared_rsp[i].rdata  = '0;
 
+            core_remote_rsp_raw[i] = '0;
             core_remote_rsp[i] = '0;
         end
 
@@ -218,11 +245,18 @@ module tb_cv32e40p_cluster_wrapper #(
 
         for (int t = 0; t < NUM_CORES; t++) begin
             for (int i = 0; i < NUM_CORES; i++) begin
-                core_remote_rsp[i].gnt    |= remote_rsp_vec[t][i].gnt;
-                core_remote_rsp[i].rvalid |= remote_rsp_vec[t][i].rvalid;
+                core_remote_rsp_raw[i].gnt    |= remote_rsp_vec[t][i].gnt;
+                core_remote_rsp_raw[i].rvalid |= remote_rsp_vec[t][i].rvalid;
                 if (remote_rsp_vec[t][i].rvalid)
-                    core_remote_rsp[i].rdata = remote_rsp_vec[t][i].rdata;
+                    core_remote_rsp_raw[i].rdata = remote_rsp_vec[t][i].rdata;
             end
+        end
+
+        for (int i = 0; i < NUM_CORES; i++) begin
+            core_remote_rsp[i].gnt    = core_remote_rsp_raw[i].gnt;
+            core_remote_rsp[i].rvalid = remote_pipe_valid_out[i];
+            core_remote_rsp[i].rdata  = remote_pipe_rdata_out[i];
+            remote_rsp_valid_raw[i]   = core_remote_rsp_raw[i].rvalid;
         end
     end
 
