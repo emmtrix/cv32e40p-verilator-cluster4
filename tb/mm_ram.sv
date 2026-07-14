@@ -187,20 +187,16 @@ module mm_ram
     logic                          rnd_num_req;
     logic [31:0]                   rnd_num;
 
-    // software EU-style barrier peripheral state
-    logic [NUM_CORES-1:0]          eu_bar_mask_q;
-    logic [NUM_CORES-1:0]          eu_bar_arrived_q;
-    logic [NUM_CORES-1:0]          eu_evt_pending_q;
-    logic [31:0]                   eu_bar_setup_raw_q;
     logic                          eu_bar_notify_valid;
     logic [31:0]                   eu_bar_notify_wdata;
     logic                          eu_bar_setup_valid;
     logic [31:0]                   eu_bar_setup_wdata;
     logic                          eu_evt_clear_valid;
     logic [31:0]                   eu_evt_clear_wdata;
-    logic [31:0]                   data_core_id_req_q;
-    logic                          eu_read_wait_d;
-    logic                          eu_read_wait_q;
+    logic                          eu_read_req;
+    logic                          eu_read_wait;
+    logic [31:0]                   eu_read_rdata;
+    logic                          eu_bar_irq;
 
     //random or monitor interrupt request
     logic                          rnd_irq;
@@ -336,7 +332,8 @@ module mm_ram
         eu_bar_setup_wdata  = '0;
         eu_evt_clear_valid  = '0;
         eu_evt_clear_wdata  = '0;
-        eu_read_wait_d      = eu_read_wait_q;
+        eu_read_req         = '0;
+        eu_read_wait        = '0;
         cycle_count_clear   = '0;
         select_rdata_d      = RAM;
         transaction         = T_PER;
@@ -474,7 +471,8 @@ module mm_ram
                     select_rdata_d = TICKS;
                 end else if (data_addr_i == MMADDR_EU_EVT_WAIT || data_addr_i == MMADDR_EU_SET_BARRIER) begin
                     select_rdata_d = EU_EVT;
-                    eu_read_wait_d = (data_addr_i == MMADDR_EU_EVT_WAIT);
+                    eu_read_req  = 1'b1;
+                    eu_read_wait = (data_addr_i == MMADDR_EU_EVT_WAIT);
                 end else
                     select_rdata_d = ERR;
 
@@ -525,11 +523,7 @@ module mm_ram
         end else if (select_rdata_q == TICKS) begin
             data_rdata_mux = cycle_count_q;
         end else if (select_rdata_q == EU_EVT) begin
-            if (eu_read_wait_q && data_core_id_req_q < NUM_CORES) begin
-                data_rdata_mux = {{31{1'b0}}, eu_evt_pending_q[data_core_id_req_q]};
-            end else if (!eu_read_wait_q) begin
-                data_rdata_mux = eu_bar_setup_raw_q;
-            end
+            data_rdata_mux = eu_read_rdata;
 `ifndef VERILATOR
         end else if (select_rdata_q == ERR) begin
             `uvm_error(MM_RAM_TAG, $sformatf("out of bounds read from %08x (RAM_ADDR_WIDTH=%0d; dm_halt_addri=%08x, DBG_ADDR_WIDTH=%0d)",
@@ -556,8 +550,6 @@ module mm_ram
         end
     end
 
-    logic eu_bar_irq;
-    assign eu_bar_irq = |eu_evt_pending_q;
     assign irq_o    = irq_q | (rnd_irq << RND_IRQ_ID) | (eu_bar_irq << EU_BAR_IRQ_ID);
 
     // Set irq vector to timer_irq_mask_q when timer counts down
@@ -619,45 +611,23 @@ module mm_ram
         end
     end // block: tb_stall
 
-    // Minimal software event-unit barrier model:
-    // - setup configures participating cores mask
-    // - notify contributes one arrival for the requesting core
-    // - once all participants arrived, pending event is set for all participants
-    // - clear removes pending event for requesting core
-    always_ff @(posedge clk_i, negedge rst_ni) begin: tb_eu_barrier
-        logic [NUM_CORES-1:0] next_arrived;
-        if (~rst_ni) begin
-            eu_bar_mask_q    <= '0;
-            eu_bar_arrived_q <= '0;
-            eu_evt_pending_q <= '0;
-            eu_bar_setup_raw_q <= '0;
-        end else begin
-            if (eu_bar_setup_valid) begin
-                eu_bar_setup_raw_q <= eu_bar_setup_wdata;
-                eu_bar_mask_q <= eu_bar_setup_wdata[NUM_CORES-1:0];
-                eu_bar_arrived_q <= '0;
-                eu_evt_pending_q <= '0;
-            end
-
-            if (eu_bar_notify_valid && data_core_id_i < NUM_CORES) begin
-                if (eu_bar_mask_q[data_core_id_i] && !eu_evt_pending_q[data_core_id_i]) begin
-                    next_arrived = eu_bar_arrived_q | ({{(NUM_CORES-1){1'b0}}, 1'b1} << data_core_id_i);
-                    if (next_arrived == eu_bar_mask_q && eu_bar_mask_q != '0) begin
-                        eu_bar_arrived_q <= '0;
-                        eu_evt_pending_q <= eu_evt_pending_q | eu_bar_mask_q;
-                    end else begin
-                        eu_bar_arrived_q <= next_arrived;
-                    end
-                end
-            end
-
-            if (eu_evt_clear_valid && data_core_id_i < NUM_CORES) begin
-                if (eu_evt_clear_wdata[3:0] == 4'd0) begin
-                    eu_evt_pending_q[data_core_id_i] <= 1'b0;
-                end
-            end
-        end
-    end
+    tb_event_unit #(
+        .NUM_CORES(NUM_CORES)
+    ) eu_i (
+        .clk_i             (clk_i),
+        .rst_ni            (rst_ni),
+        .bar_notify_valid_i(eu_bar_notify_valid),
+        .bar_notify_wdata_i(eu_bar_notify_wdata),
+        .bar_setup_valid_i (eu_bar_setup_valid),
+        .bar_setup_wdata_i (eu_bar_setup_wdata),
+        .evt_clear_valid_i (eu_evt_clear_valid),
+        .evt_clear_wdata_i (eu_evt_clear_wdata),
+        .read_req_i        (eu_read_req),
+        .read_wait_i       (eu_read_wait),
+        .read_core_id_i    (data_core_id_i),
+        .read_rdata_o      (eu_read_rdata),
+        .irq_o             (eu_bar_irq)
+    );
 
    // -------------------------------------------------------------
    // Generate a random number using the SystemVerilog random number function
@@ -819,14 +789,8 @@ module mm_ram
     always_ff @(posedge clk_i, negedge rst_ni) begin
         if (~rst_ni) begin
             select_rdata_q <= RAM;
-            data_core_id_req_q <= '0;
-            eu_read_wait_q <= 1'b0;
         end else begin
             select_rdata_q <= select_rdata_d;
-            eu_read_wait_q <= eu_read_wait_d;
-            if (data_req_i & data_gnt_o) begin
-                data_core_id_req_q <= data_core_id_i;
-            end
         end
     end
 

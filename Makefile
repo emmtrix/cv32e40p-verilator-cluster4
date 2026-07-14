@@ -41,7 +41,12 @@ APP_OBJ := $(FW_BUILD_DIR)/$(APP).o
 
 SV_TB_SRCS := \
 	tb/tb_top_verilator.sv \
+	tb/tb_mem_types_pkg.sv \
 	tb/tb_cv32e40p_cluster_wrapper.sv \
+	tb/tb_cv32e40p_cluster_core.sv \
+	tb/rr_arbiter.sv \
+	tb/tb_event_unit.sv \
+	tb/tb_shared_latency_pipe.sv \
 	tb/tb_riscv/include/perturbation_defines.sv \
 	tb/tb_riscv/riscv_rvalid_stall.sv \
 	tb/tb_riscv/riscv_gnt_stall.sv \

@@ -12,6 +12,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include "cluster_sync.h"
 
 static volatile uint32_t core_result[NUM_CORES];
@@ -48,7 +49,7 @@ int main(void) {
         uint32_t expected = (neighbor << 16) | i;
         uint32_t got      = nb_spm[i];
         if (got != expected) {
-            printf("Core %u: FAIL spm[%u][%u] got 0x%08x exp 0x%08x\n",
+            printf("Core %" PRIu32 ": FAIL spm[%" PRIu32 "][%" PRIu32 "] got 0x%08" PRIx32 " exp 0x%08" PRIx32 "\n",
                    hart, neighbor, i, got, expected);
             core_result[hart] = 1u;
         }
