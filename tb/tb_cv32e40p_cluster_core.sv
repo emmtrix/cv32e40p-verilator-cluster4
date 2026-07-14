@@ -14,51 +14,25 @@ module tb_cv32e40p_cluster_core #(
     input  logic rst_ni,
     input  logic fetch_enable_i,
 
-    // IRQ / debug
     input  logic [31:0] irq_i,
     input  logic        debug_req_i,
     output logic        irq_ack_o,
     output logic [4:0]  irq_id_o,
 
-    // Outgoing instruction interface to shared memory
-    output logic                         instr_req_o,
-    output logic [31:0]                  instr_addr_o,
-    input  logic                         instr_gnt_i,
-    input  logic                         instr_rvalid_i,
-    input  logic [INSTR_RDATA_WIDTH-1:0] instr_rdata_i,
+    output tb_mem_types_pkg::tb_mem_req_t instr_req_o,
+    input  tb_mem_types_pkg::tb_mem_rsp_t instr_rsp_i,
 
-    // Outgoing shared-data interface to shared memory
-    output logic        shared_data_req_o,
-    output logic [31:0] shared_data_addr_o,
-    output logic        shared_data_we_o,
-    output logic [3:0]  shared_data_be_o,
-    output logic [31:0] shared_data_wdata_o,
-    input  logic        shared_data_gnt_i,
-    input  logic        shared_data_rvalid_i,
-    input  logic [31:0] shared_data_rdata_i,
+    output tb_mem_types_pkg::tb_mem_req_t shared_req_o,
+    input  tb_mem_types_pkg::tb_mem_rsp_t shared_rsp_i,
 
-    // Outgoing remote-SPM request interface
-    output logic                         remote_req_o,
+    output tb_mem_types_pkg::tb_mem_req_t remote_req_o,
+    input  tb_mem_types_pkg::tb_mem_rsp_t remote_rsp_i,
     output logic [((NUM_CORES > 1) ? $clog2(NUM_CORES) : 1)-1:0] remote_target_o,
-    output logic [31:0]                  remote_addr_o,
-    output logic                         remote_we_o,
-    output logic [3:0]                   remote_be_o,
-    output logic [31:0]                  remote_wdata_o,
-    input  logic                         remote_gnt_i,
-    input  logic                         remote_rvalid_i,
-    input  logic [31:0]                  remote_rdata_i,
 
-    // Incoming remote-SPM access interface (other cores -> this core's scratchpad)
-    input  logic                         remote_in_req_i,
+    input  tb_mem_types_pkg::tb_mem_req_t remote_in_req_i,
     input  logic [((NUM_CORES > 1) ? $clog2(NUM_CORES) : 1)-1:0] remote_in_src_core_i,
-    input  logic [31:0]                  remote_in_addr_i,
-    input  logic                         remote_in_we_i,
-    input  logic [3:0]                   remote_in_be_i,
-    input  logic [31:0]                  remote_in_wdata_i,
-    output logic                         remote_in_gnt_o,
-    output logic                         remote_in_rvalid_o,
-    output logic [((NUM_CORES > 1) ? $clog2(NUM_CORES) : 1)-1:0] remote_in_rsp_core_o,
-    output logic [31:0]                  remote_in_rdata_o
+    output tb_mem_types_pkg::tb_mem_rsp_t remote_in_rsp_o,
+    output logic [((NUM_CORES > 1) ? $clog2(NUM_CORES) : 1)-1:0] remote_in_rsp_core_o
 );
 
     localparam int unsigned CORE_IDX_W = (NUM_CORES > 1) ? $clog2(NUM_CORES) : 1;
@@ -109,11 +83,11 @@ module tb_cv32e40p_cluster_core #(
         .hart_id_i          (CORE_ID),
         .dm_exception_addr_i(32'h1A111000),
 
-        .instr_req_o        (instr_req_o),
-        .instr_gnt_i        (instr_gnt_i),
-        .instr_rvalid_i     (instr_rvalid_i),
-        .instr_addr_o       (instr_addr_o),
-        .instr_rdata_i      (instr_rdata_i),
+        .instr_req_o        (instr_req_o.req),
+        .instr_gnt_i        (instr_rsp_i.gnt),
+        .instr_rvalid_i     (instr_rsp_i.rvalid),
+        .instr_addr_o       (instr_req_o.addr),
+        .instr_rdata_i      (instr_rsp_i.rdata),
 
         .data_req_o         (core_data_req),
         .data_gnt_i         (core_data_gnt),
@@ -135,6 +109,10 @@ module tb_cv32e40p_cluster_core #(
         .core_sleep_o       ()
     );
 
+    assign instr_req_o.we    = 1'b0;
+    assign instr_req_o.be    = '0;
+    assign instr_req_o.wdata = '0;
+
     assign core_is_spm =
         (core_data_addr >= SPM_BASE_ADDR) &&
         (core_data_addr <  SPM_END_ADDR);
@@ -145,20 +123,19 @@ module tb_cv32e40p_cluster_core #(
 
     assign local_spm_en = core_data_req && core_is_local_spm;
 
-    assign shared_data_req_o   = core_data_req && core_is_shared;
-    assign shared_data_addr_o  = core_data_addr;
-    assign shared_data_we_o    = core_data_we;
-    assign shared_data_be_o    = core_data_be;
-    assign shared_data_wdata_o = core_data_wdata;
+    assign shared_req_o.req   = core_data_req && core_is_shared;
+    assign shared_req_o.addr  = core_data_addr;
+    assign shared_req_o.we    = core_data_we;
+    assign shared_req_o.be    = core_data_be;
+    assign shared_req_o.wdata = core_data_wdata;
 
-    assign remote_req_o    = core_data_req && core_is_remote_spm;
-    assign remote_target_o = core_spm_target;
-    assign remote_addr_o   = core_data_addr;
-    assign remote_we_o     = core_data_we;
-    assign remote_be_o     = core_data_be;
-    assign remote_wdata_o  = core_data_wdata;
+    assign remote_req_o.req   = core_data_req && core_is_remote_spm;
+    assign remote_req_o.addr  = core_data_addr;
+    assign remote_req_o.we    = core_data_we;
+    assign remote_req_o.be    = core_data_be;
+    assign remote_req_o.wdata = core_data_wdata;
+    assign remote_target_o    = core_spm_target;
 
-    // Local accesses take priority over incoming remote accesses.
     always_comb begin
         if (local_spm_en) begin
             spm_en    = 1'b1;
@@ -166,12 +143,12 @@ module tb_cv32e40p_cluster_core #(
             spm_be    = core_data_be;
             spm_addr  = core_data_addr[SPM_ADDR_WIDTH-1:0];
             spm_wdata = core_data_wdata;
-        end else if (remote_in_req_i) begin
+        end else if (remote_in_req_i.req) begin
             spm_en    = 1'b1;
-            spm_we    = remote_in_we_i;
-            spm_be    = remote_in_be_i;
-            spm_addr  = remote_in_addr_i[SPM_ADDR_WIDTH-1:0];
-            spm_wdata = remote_in_wdata_i;
+            spm_we    = remote_in_req_i.we;
+            spm_be    = remote_in_req_i.be;
+            spm_addr  = remote_in_req_i.addr[SPM_ADDR_WIDTH-1:0];
+            spm_wdata = remote_in_req_i.wdata;
         end else begin
             spm_en    = 1'b0;
             spm_we    = 1'b0;
@@ -181,7 +158,7 @@ module tb_cv32e40p_cluster_core #(
         end
     end
 
-    assign remote_in_gnt_o = remote_in_req_i && !local_spm_en;
+    assign remote_in_rsp_o.gnt = remote_in_req_i.req && !local_spm_en;
 
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
@@ -190,24 +167,24 @@ module tb_cv32e40p_cluster_core #(
             remote_rsp_src_q   <= '0;
         end else begin
             local_spm_rvalid_q <= local_spm_en;
-            remote_rsp_valid_q <= remote_in_gnt_o;
-            if (remote_in_gnt_o)
+            remote_rsp_valid_q <= remote_in_rsp_o.gnt;
+            if (remote_in_rsp_o.gnt)
                 remote_rsp_src_q <= remote_in_src_core_i;
         end
     end
 
-    assign remote_in_rvalid_o   = remote_rsp_valid_q;
-    assign remote_in_rsp_core_o = remote_rsp_src_q;
-    assign remote_in_rdata_o     = spm_rdata;
+    assign remote_in_rsp_o.rvalid = remote_rsp_valid_q;
+    assign remote_in_rsp_o.rdata  = spm_rdata;
+    assign remote_in_rsp_core_o   = remote_rsp_src_q;
 
     always_comb begin
         core_data_gnt = 1'b0;
         if (local_spm_en) begin
             core_data_gnt = 1'b1;
         end else if (core_data_req && core_is_remote_spm) begin
-            core_data_gnt = remote_gnt_i;
+            core_data_gnt = remote_rsp_i.gnt;
         end else if (core_data_req && core_is_shared) begin
-            core_data_gnt = shared_data_gnt_i;
+            core_data_gnt = shared_rsp_i.gnt;
         end
     end
 
@@ -219,13 +196,13 @@ module tb_cv32e40p_cluster_core #(
             core_data_rvalid = 1'b1;
             core_data_rdata  = spm_rdata;
         end
-        if (remote_rvalid_i) begin
+        if (remote_rsp_i.rvalid) begin
             core_data_rvalid = 1'b1;
-            core_data_rdata  = remote_rdata_i;
+            core_data_rdata  = remote_rsp_i.rdata;
         end
-        if (shared_data_rvalid_i) begin
+        if (shared_rsp_i.rvalid) begin
             core_data_rvalid = 1'b1;
-            core_data_rdata  = shared_data_rdata_i;
+            core_data_rdata  = shared_rsp_i.rdata;
         end
     end
 

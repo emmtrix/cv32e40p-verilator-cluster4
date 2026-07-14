@@ -4,41 +4,21 @@
 module rr_arbiter #(
     parameter int unsigned NUM_REQ = 4,
     parameter int unsigned IDX_W = (NUM_REQ > 1) ? $clog2(NUM_REQ) : 1,
-    parameter int unsigned ADDR_W = 32,
-    parameter int unsigned DATA_W = 32,
-    parameter int unsigned BE_W = 4,
     parameter int unsigned FIFO_DEPTH = 32,
     parameter int unsigned FIFO_PTR_W = $clog2(FIFO_DEPTH)
 ) (
-    input  logic                         clk_i,
-    input  logic                         rst_ni,
+    input  logic                            clk_i,
+    input  logic                            rst_ni,
+    input  logic [NUM_REQ-1:0]              req_mask_i,
 
-    // Request side (masters)
-    input  logic [NUM_REQ-1:0]           req_i,
-    input  logic [NUM_REQ-1:0][ADDR_W-1:0]  addr_i,
-    input  logic [NUM_REQ-1:0]           we_i,
-    input  logic [NUM_REQ-1:0][BE_W-1:0] be_i,
-    input  logic [NUM_REQ-1:0][DATA_W-1:0] wdata_i,
+    input  tb_mem_types_pkg::tb_mem_req_t   req_i [NUM_REQ],
+    output tb_mem_types_pkg::tb_mem_rsp_t   rsp_o [NUM_REQ],
 
-    // Shared memory side (slave)
-    output logic                         req_o,
-    output logic [ADDR_W-1:0]            addr_o,
-    output logic                         we_o,
-    output logic [BE_W-1:0]              be_o,
-    output logic [DATA_W-1:0]            wdata_o,
-    input  logic                         gnt_i,
-    input  logic                         rvalid_i,
-    input  logic [DATA_W-1:0]            rdata_i,
+    output tb_mem_types_pkg::tb_mem_req_t   req_o,
+    input  tb_mem_types_pkg::tb_mem_rsp_t   rsp_i,
 
-    // Return side (masters)
-    output logic [NUM_REQ-1:0]           gnt_o,
-    output logic                         rsp_valid_o,
-    output logic [IDX_W-1:0]             rsp_idx_o,
-    output logic [DATA_W-1:0]            rsp_data_o,
-
-    // Optional visibility of current selected request
-    output logic [IDX_W-1:0]             req_idx_o,
-    output logic                         req_valid_o
+    output logic [IDX_W-1:0]                req_idx_o,
+    output logic                            req_valid_o
 );
 
     logic [IDX_W-1:0] rr_q;
@@ -53,7 +33,6 @@ module rr_arbiter #(
     logic [IDX_W-1:0]      rsp_pop_idx;
 
     always_comb begin
-        gnt_o       = '0;
         req_idx_o   = rr_q;
         req_valid_o = 1'b0;
 
@@ -61,34 +40,33 @@ module rr_arbiter #(
             int unsigned idx;
             idx = int'(rr_q) + ofs;
             if (idx >= NUM_REQ) idx -= NUM_REQ;
-            if (!req_valid_o && req_i[idx]) begin
+            if (!req_valid_o && req_i[idx].req && req_mask_i[idx]) begin
                 req_valid_o = 1'b1;
                 req_idx_o   = idx[IDX_W-1:0];
             end
         end
 
-        req_o   = req_valid_o;
-        addr_o  = req_valid_o ? addr_i[req_idx_o] : '0;
-        we_o    = req_valid_o ? we_i[req_idx_o] : 1'b0;
-        be_o    = req_valid_o ? be_i[req_idx_o] : '0;
-        wdata_o = req_valid_o ? wdata_i[req_idx_o] : '0;
-
-        if (req_valid_o && gnt_i) begin
-            gnt_o[req_idx_o] = 1'b1;
+        req_o = '0;
+        if (req_valid_o) begin
+            req_o = req_i[req_idx_o];
         end
 
-        rsp_valid_o = 1'b0;
-        rsp_idx_o   = '0;
-        rsp_data_o  = '0;
+        for (int i = 0; i < NUM_REQ; i++) begin
+            rsp_o[i] = '0;
+        end
+
+        if (req_valid_o && rsp_i.gnt) begin
+            rsp_o[req_idx_o].gnt = 1'b1;
+        end
+
         if (rsp_pop) begin
-            rsp_valid_o = 1'b1;
-            rsp_idx_o   = rsp_pop_idx;
-            rsp_data_o  = rdata_i;
+            rsp_o[rsp_pop_idx].rvalid = 1'b1;
+            rsp_o[rsp_pop_idx].rdata  = rsp_i.rdata;
         end
     end
 
-    assign rsp_push    = req_valid_o && gnt_i && (rsp_count_q < FIFO_DEPTH);
-    assign rsp_pop     = rvalid_i && (rsp_count_q != 0);
+    assign rsp_push    = req_valid_o && rsp_i.gnt && (rsp_count_q < FIFO_DEPTH);
+    assign rsp_pop     = rsp_i.rvalid && (rsp_count_q != 0);
     assign rsp_pop_idx = rsp_fifo[rsp_rptr_q];
 
     always_ff @(posedge clk_i or negedge rst_ni) begin
