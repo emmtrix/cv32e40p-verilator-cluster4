@@ -543,9 +543,7 @@ module mm_ram
 
             end else begin
                 $write("%c", print_wdata[7:0]);
-`ifndef VERILATOR
                 $fflush();
-`endif
             end
         end
     end

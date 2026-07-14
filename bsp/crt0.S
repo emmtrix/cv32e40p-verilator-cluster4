@@ -59,7 +59,13 @@ _start:
 	li a2, 0
 
 	call main
+	csrr t0, mhartid
+	bnez t0, .Lhart_park
 	tail exit
+
+.Lhart_park:
+	wfi
+	j .Lhart_park
 
 .size  _start, .-_start
 
