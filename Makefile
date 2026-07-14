@@ -42,6 +42,7 @@ APP_OBJ := $(FW_BUILD_DIR)/$(APP).o
 SV_TB_SRCS := \
 	tb/tb_top_verilator.sv \
 	tb/tb_mem_types_pkg.sv \
+	tb/tb_core_dma_engine.sv \
 	tb/tb_cv32e40p_cluster_wrapper.sv \
 	tb/tb_cv32e40p_cluster_core.sv \
 	tb/rr_arbiter.sv \
@@ -57,7 +58,7 @@ SV_TB_SRCS := \
 CPP_TB_SRC := $(abspath tb/tb_top_verilator.cpp)
 SIM_EXE := $(VERI_OBJ_DIR)/Vtb_top_verilator
 
-MAXCYCLES ?= 2000000
+MAXCYCLES ?= 20000000
 VERI_CFLAGS ?= -O2
 VERI_TRACE ?=
 
