@@ -4,7 +4,6 @@
 module tb_cv32e40p_cluster_core #(
     parameter int unsigned NUM_CORES = 4,
     parameter int unsigned CORE_ID = 0,
-    parameter int unsigned INSTR_RDATA_WIDTH = 32,
     parameter logic [31:0] BOOT_ADDR = 32'h00000080,
     parameter logic [31:0] DM_HALTADDRESS = 32'h1A110800,
     parameter int unsigned SPM_ADDR_WIDTH = 18,
@@ -26,14 +25,8 @@ module tb_cv32e40p_cluster_core #(
     output tb_mem_types_pkg::tb_mem_req_t shared_req_o,
     input  tb_mem_types_pkg::tb_mem_rsp_t shared_rsp_i,
 
-    output tb_mem_types_pkg::tb_mem_req_t remote_req_o,
-    input  tb_mem_types_pkg::tb_mem_rsp_t remote_rsp_i,
-    output logic [((NUM_CORES > 1) ? $clog2(NUM_CORES) : 1)-1:0] remote_target_o,
-
     input  tb_mem_types_pkg::tb_mem_req_t remote_in_req_i,
-    input  logic [((NUM_CORES > 1) ? $clog2(NUM_CORES) : 1)-1:0] remote_in_src_core_i,
-    output tb_mem_types_pkg::tb_mem_rsp_t remote_in_rsp_o,
-    output logic [((NUM_CORES > 1) ? $clog2(NUM_CORES) : 1)-1:0] remote_in_rsp_core_o
+    output tb_mem_types_pkg::tb_mem_rsp_t remote_in_rsp_o
 );
 
     localparam int unsigned CORE_IDX_W = (NUM_CORES > 1) ? $clog2(NUM_CORES) : 1;
@@ -65,7 +58,6 @@ module tb_cv32e40p_cluster_core #(
     logic                  local_spm_rvalid_q;
 
     logic                  remote_rsp_valid_q;
-    logic [CORE_IDX_W-1:0] remote_rsp_src_q;
 
     logic                  spm_en;
     logic                  spm_we;
@@ -148,7 +140,7 @@ module tb_cv32e40p_cluster_core #(
                           (core_data_addr == MMADDR_DMA_DST) ||
                           (core_data_addr == MMADDR_DMA_LEN) ||
                           (core_data_addr == MMADDR_DMA_WAIT));
-    assign core_is_shared_mem = core_is_shared && !core_is_dma;
+    assign core_is_shared_mem = (core_is_remote_spm || core_is_shared) && !core_is_dma;
 
     assign local_spm_en = core_data_req && core_is_local_spm;
 
@@ -178,13 +170,6 @@ module tb_cv32e40p_cluster_core #(
         .req_idx_o  (),
         .req_valid_o()
     );
-
-    assign remote_req_o.req   = core_data_req && core_is_remote_spm;
-    assign remote_req_o.addr  = core_data_addr;
-    assign remote_req_o.we    = core_data_we;
-    assign remote_req_o.be    = core_data_be;
-    assign remote_req_o.wdata = core_data_wdata;
-    assign remote_target_o    = core_spm_target;
 
     assign dma_cfg_src_valid = core_data_req && core_data_gnt && core_data_we && (core_data_addr == MMADDR_DMA_SRC);
     assign dma_cfg_dst_valid = core_data_req && core_data_gnt && core_data_we && (core_data_addr == MMADDR_DMA_DST);
@@ -235,25 +220,19 @@ module tb_cv32e40p_cluster_core #(
         if (!rst_ni) begin
             local_spm_rvalid_q <= 1'b0;
             remote_rsp_valid_q <= 1'b0;
-            remote_rsp_src_q   <= '0;
         end else begin
             local_spm_rvalid_q <= local_spm_en;
             remote_rsp_valid_q <= remote_in_rsp_o.gnt;
-            if (remote_in_rsp_o.gnt)
-                remote_rsp_src_q <= remote_in_src_core_i;
         end
     end
 
     assign remote_in_rsp_o.rvalid = remote_rsp_valid_q;
     assign remote_in_rsp_o.rdata  = spm_rdata;
-    assign remote_in_rsp_core_o   = remote_rsp_src_q;
 
     always_comb begin
         core_data_gnt = 1'b0;
         if (local_spm_en) begin
             core_data_gnt = 1'b1;
-        end else if (core_data_req && core_is_remote_spm) begin
-            core_data_gnt = remote_rsp_i.gnt;
         end else if (core_data_req && core_is_dma) begin
             if (core_data_we) begin
                 if (core_data_addr == MMADDR_DMA_LEN)
@@ -284,10 +263,6 @@ module tb_cv32e40p_cluster_core #(
         if (local_spm_rvalid_q) begin
             core_data_rvalid = 1'b1;
             core_data_rdata  = spm_rdata;
-        end
-        if (remote_rsp_i.rvalid) begin
-            core_data_rvalid = 1'b1;
-            core_data_rdata  = remote_rsp_i.rdata;
         end
         if (cpu_shared_rsp.rvalid) begin
             core_data_rvalid = 1'b1;

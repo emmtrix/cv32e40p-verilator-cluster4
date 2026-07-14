@@ -58,7 +58,7 @@ SV_TB_SRCS := \
 CPP_TB_SRC := $(abspath tb/tb_top_verilator.cpp)
 SIM_EXE := $(VERI_OBJ_DIR)/Vtb_top_verilator
 
-MAXCYCLES ?= 2000000
+MAXCYCLES ?= 20000000
 VERI_CFLAGS ?= -O2
 VERI_TRACE ?=
 
