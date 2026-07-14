@@ -42,6 +42,7 @@ APP_OBJ := $(FW_BUILD_DIR)/$(APP).o
 SV_TB_SRCS := \
 	tb/tb_top_verilator.sv \
 	tb/tb_mem_types_pkg.sv \
+	tb/tb_core_dma_engine.sv \
 	tb/tb_cv32e40p_cluster_wrapper.sv \
 	tb/tb_cv32e40p_cluster_core.sv \
 	tb/rr_arbiter.sv \

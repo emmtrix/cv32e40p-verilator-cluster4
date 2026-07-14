@@ -10,7 +10,8 @@ module tb_cv32e40p_cluster_wrapper #(
     parameter int unsigned SPM_ADDR_WIDTH = 18,
     parameter logic [31:0] SPM_BASE_ADDR = 32'h1800_0000,
     parameter int unsigned SHARED_MEM_EXTRA_LATENCY = 20,
-    parameter int unsigned REMOTE_SPM_EXTRA_LATENCY = 20
+    parameter int unsigned REMOTE_SPM_EXTRA_LATENCY = 20,
+    parameter int unsigned DMA_QUEUE_SLOTS = 3
 ) (
     input  logic clk_i,
     input  logic rst_ni,
@@ -96,7 +97,8 @@ module tb_cv32e40p_cluster_wrapper #(
                 .BOOT_ADDR        (BOOT_ADDR),
                 .DM_HALTADDRESS   (DM_HALTADDRESS),
                 .SPM_ADDR_WIDTH   (SPM_ADDR_WIDTH),
-                .SPM_BASE_ADDR    (SPM_BASE_ADDR)
+                .SPM_BASE_ADDR    (SPM_BASE_ADDR),
+                .DMA_QUEUE_SLOTS  (DMA_QUEUE_SLOTS)
             ) core_i (
                 .clk_i              (clk_i),
                 .rst_ni             (rst_ni),
