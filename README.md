@@ -53,6 +53,7 @@ This behavior is documented in CV32E40P sleep docs:
 - `make APP=reduction-demo run` : parallel reduction demo
 - `make APP=tiled-matmul-demo run` : tiled matrix multiplication demo
 - `make APP=dma-demo run` : DMA memcpy demo (128-element copy and verify)
+- `make APP=perfcounter-demo run` : use `mhpmcounter3` to compare pipeline stall counts for shared memory vs local scratchpad loads
 - `make APP=barrier-skew-demo run MAXCYCLES=20000000` : barrier stress test with one slow hart and other fast harts
 - `make verilate` : compile RTL/testbench with Verilator
 - `make run MAXCYCLES=5000000` : run with a custom cycle limit
