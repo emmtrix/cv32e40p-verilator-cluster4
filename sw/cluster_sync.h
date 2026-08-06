@@ -40,19 +40,19 @@
 
 /* Event selector bits from CV32E40P perf counter docs. */
 typedef enum {
-    CL_HPM_EVENT_CYCLES = 0,
-    CL_HPM_EVENT_INSTR = 1,
-    CL_HPM_EVENT_LD_STALL = 2,
-    CL_HPM_EVENT_JMP_STALL = 3,
-    CL_HPM_EVENT_IMISS = 4,
-    CL_HPM_EVENT_LD = 5,
-    CL_HPM_EVENT_ST = 6,
-    CL_HPM_EVENT_JUMP = 7,
-    CL_HPM_EVENT_BRANCH = 8,
-    CL_HPM_EVENT_BRANCH_TAKEN = 9,
-    CL_HPM_EVENT_COMP_INSTR = 10,
-    CL_HPM_EVENT_PIPE_STALL = 11
-} cl_hpm_event_bit_t;
+    CL_MHPM_EVENT_CYCLES = 0,
+    CL_MHPM_EVENT_INSTR = 1,
+    CL_MHPM_EVENT_LD_STALL = 2,
+    CL_MHPM_EVENT_JMP_STALL = 3,
+    CL_MHPM_EVENT_IMISS = 4,
+    CL_MHPM_EVENT_LD = 5,
+    CL_MHPM_EVENT_ST = 6,
+    CL_MHPM_EVENT_JUMP = 7,
+    CL_MHPM_EVENT_BRANCH = 8,
+    CL_MHPM_EVENT_BRANCH_TAKEN = 9,
+    CL_MHPM_EVENT_COMP_INSTR = 10,
+    CL_MHPM_EVENT_PIPE_STALL = 11
+} cl_mhpm_event_t;
 
 static inline uint32_t cl_read_mhartid(void) {
     uint32_t hart;
@@ -104,7 +104,7 @@ static inline uint64_t cl_read_mhpmcounter3_64(void) {
     return ((uint64_t)hi1 << 32) | (uint64_t)lo;
 }
 
-static inline void cl_perf_mhpmcounter3_set_event(cl_hpm_event_bit_t event_bit) {
+static inline void cl_perf_mhpmcounter3_set_event(cl_mhpm_event_t event_bit) {
     uint32_t sel = (event_bit < 32u) ? (1u << event_bit) : 0u;
     __asm__ volatile ("csrw mhpmevent3, %0" :: "r"(sel) : "memory");
 }
@@ -126,7 +126,7 @@ static inline void cl_perf_mhpmcounter3_disable(void) {
     cl_write_csr_mcountinhibit(inhibit);
 }
 
-static inline void cl_perf_mhpmcounter3_config(cl_hpm_event_bit_t event_bit) {
+static inline void cl_perf_mhpmcounter3_config(cl_mhpm_event_t event_bit) {
     cl_perf_mhpmcounter3_disable();
     cl_perf_mhpmcounter3_set_event(event_bit);
     cl_perf_mhpmcounter3_reset();

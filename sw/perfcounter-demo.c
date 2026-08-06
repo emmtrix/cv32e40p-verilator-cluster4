@@ -24,7 +24,7 @@ static uint32_t run_load_sum(const volatile uint32_t *buf, uint32_t rounds) {
 }
 
 static uint64_t measure_cycles_load_sum(const volatile uint32_t *buf, uint32_t rounds, uint32_t *checksum) {
-    cl_perf_mhpmcounter3_config(CL_HPM_EVENT_CYCLES);
+    cl_perf_mhpmcounter3_config(CL_MHPM_EVENT_CYCLES);
     *checksum = run_load_sum(buf, rounds);
     cl_perf_mhpmcounter3_disable();
     return cl_read_mhpmcounter3_64();
