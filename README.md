@@ -5,8 +5,8 @@ A standalone testbench for a 4-core CV32E40P cluster.
 ![Arch](arch.svg)
 
 - 4 CV32E40P cores
-- 4MB Shared Memory, > 2 Cycle Latency
-- Each core has a 4kB scratchpad memory, 1 Cycle Latency
+- 64MB Shared Memory, 20 Cycle Latency
+- Each core has a 256kB scratchpad memory, local path fast
 - Each scratchpad memory is accessible by all cores
 
 ## Prerequisites
@@ -54,7 +54,7 @@ This behavior is documented in CV32E40P sleep docs:
 - `make APP=tiled-matmul-demo run` : tiled matrix multiplication demo
 - `make APP=dma-demo run` : DMA memcpy demo (128-element copy and verify)
 - `make APP=perfcounter-demo run` : use `mhpmcounter3` to compare pipeline stall counts for shared memory vs local scratchpad loads
-- `make APP=barrier-skew-demo run MAXCYCLES=5000000` : barrier stress test with one slow hart and other fast harts
+- `make APP=barrier-skew-demo run MAXCYCLES=20000000` : barrier stress test with one slow hart and other fast harts
 - `make verilate` : compile RTL/testbench with Verilator
 - `make run MAXCYCLES=5000000` : run with a custom cycle limit
 - `make clean` : remove build artifacts

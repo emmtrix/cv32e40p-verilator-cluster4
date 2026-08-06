@@ -6,7 +6,7 @@
  *
  * Core 0 runs two tight loops (N iterations each):
  *   1. Read/write to its local scratchpad  (SPM, expected 1-cycle data latency)
- *   2. Read/write to a shared-memory array (expected 1 + EXTRA cycles latency)
+ *   2. Read/write to a shared-memory array (configured for high latency in TB)
  *
  * It prints the cycle counts and asserts that scratchpad is strictly faster.
  * The test passes if SPM cycles < shared-memory cycles.

@@ -1,15 +1,7 @@
 // SPDX-FileCopyrightText: 2024 emmtrix Technologies GmbH
 // SPDX-License-Identifier: Apache-2.0
 
-module tb_top_verilator #(
-    parameter INSTR_RDATA_WIDTH = 32,
-    parameter RAM_ADDR_WIDTH = 22,
-    parameter BOOT_ADDR = 32'h00000080,
-    parameter NUM_CORES = 4,
-    parameter SPM_ADDR_WIDTH = 12,
-    parameter SPM_BASE_ADDR = 32'h1800_0000,
-    parameter SHARED_MEM_EXTRA_LATENCY = 2
-) (
+module tb_top_verilator (
     input logic clk_i,
     input logic rst_ni,
     input logic fetch_enable_i,
@@ -20,12 +12,6 @@ module tb_top_verilator #(
     int unsigned cycle_cnt_q;
     logic exit_valid;
     logic [31:0] exit_value;
-
-    initial begin : check_num_cores
-        if (NUM_CORES != 4) begin
-            $fatal(1, "[TB] This testbench is configured for NUM_CORES=4");
-        end
-    end
 
     initial begin : load_prog
         logic [1023:0] firmware;
@@ -72,16 +58,7 @@ module tb_top_verilator #(
         end
     end
 
-    tb_cv32e40p_cluster_wrapper #(
-        .NUM_CORES(NUM_CORES),
-        .INSTR_RDATA_WIDTH(INSTR_RDATA_WIDTH),
-        .RAM_ADDR_WIDTH(RAM_ADDR_WIDTH),
-        .BOOT_ADDR(BOOT_ADDR),
-        .DM_HALTADDRESS(32'h1A110800),
-        .SPM_ADDR_WIDTH(SPM_ADDR_WIDTH),
-        .SPM_BASE_ADDR(SPM_BASE_ADDR),
-        .SHARED_MEM_EXTRA_LATENCY(SHARED_MEM_EXTRA_LATENCY)
-    ) tb_cv32e40p_cluster_wrapper_i (
+    tb_cv32e40p_cluster_wrapper tb_cv32e40p_cluster_wrapper_i (
         .clk_i(clk_i),
         .rst_ni(rst_ni),
         .fetch_enable_i(fetch_enable_i),

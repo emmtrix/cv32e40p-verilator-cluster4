@@ -12,10 +12,10 @@
 
 /*
  * Scratchpad memory (SPM) address helpers.
- * SPM_SIZE must match the RTL parameter 2**SPM_ADDR_WIDTH (default 4 KB).
+ * SPM_SIZE must match the RTL parameter 2**SPM_ADDR_WIDTH (default 256 KiB).
  */
 #define SPM_BASE_ADDR  0x18000000u
-#define SPM_SIZE       4096u
+#define SPM_SIZE       262144u
 #define SPM_ADDR(core_id)  (SPM_BASE_ADDR + (uint32_t)(core_id) * SPM_SIZE)
 #define SPM_PTR(core_id)   ((volatile uint32_t *)SPM_ADDR(core_id))
 
@@ -186,6 +186,16 @@ static inline void cl_evt_wait(void) {
 
 static inline void cl_gpevt_clear(uint32_t barrier_id) {
     cl_mmio_write(CL_EU_GPEVT_CLEAR_ADDR, barrier_id);
+}
+
+static inline void cl_dma_memcpy(void *dst, const void *src, uint32_t len_bytes) {
+    cl_mmio_write(CL_DMA_SRC_ADDR, (uint32_t)(uintptr_t)src);
+    cl_mmio_write(CL_DMA_DST_ADDR, (uint32_t)(uintptr_t)dst);
+    cl_mmio_write(CL_DMA_LEN_ADDR, len_bytes);
+}
+
+static inline void cl_dma_wait(void) {
+    (void)cl_mmio_read(CL_DMA_WAIT_ADDR);
 }
 
 static inline void cl_barrier_init(cl_barrier_t *bar) {
