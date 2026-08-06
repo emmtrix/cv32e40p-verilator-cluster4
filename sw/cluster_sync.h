@@ -28,6 +28,45 @@
 #define CL_EU_SET_BARRIER_ADDR    (CL_EU_BASE_ADDR + 0x0040u)
 #define CL_EU_GPEVT_CLEAR_ADDR    (CL_EU_BASE_ADDR + 0x0084u)
 
+/*
+ * Per-core DMA MMIO aliases.
+ * Write order: SRC, DST, LEN. Writing LEN enqueues the memcpy task.
+ */
+#define CL_DMA_BASE_ADDR          0x15003000u
+#define CL_DMA_SRC_ADDR           (CL_DMA_BASE_ADDR + 0x0000u)
+#define CL_DMA_DST_ADDR           (CL_DMA_BASE_ADDR + 0x0004u)
+#define CL_DMA_LEN_ADDR           (CL_DMA_BASE_ADDR + 0x0008u)
+#define CL_DMA_WAIT_ADDR          (CL_DMA_BASE_ADDR + 0x000Cu)
+
+/*
+ * Performance counter CSRs (RV32).
+ * This cluster configuration implements NUM_MHPMCOUNTERS=1, i.e. mhpmcounter3.
+ */
+#define CL_CSR_MCOUNTINHIBIT      0x320u
+#define CL_CSR_MHPMEVENT3         0x323u
+#define CL_CSR_MCYCLE             0xB00u
+#define CL_CSR_MCYCLEH            0xB80u
+#define CL_CSR_MINSTRET           0xB02u
+#define CL_CSR_MINSTRETH          0xB82u
+#define CL_CSR_MHPMCOUNTER3       0xB03u
+#define CL_CSR_MHPMCOUNTER3H      0xB83u
+
+/* Event selector bits from CV32E40P perf counter docs. */
+typedef enum {
+    CL_HPM_EVENT_CYCLES = 0,
+    CL_HPM_EVENT_INSTR = 1,
+    CL_HPM_EVENT_LD_STALL = 2,
+    CL_HPM_EVENT_JMP_STALL = 3,
+    CL_HPM_EVENT_IMISS = 4,
+    CL_HPM_EVENT_LD = 5,
+    CL_HPM_EVENT_ST = 6,
+    CL_HPM_EVENT_JUMP = 7,
+    CL_HPM_EVENT_BRANCH = 8,
+    CL_HPM_EVENT_BRANCH_TAKEN = 9,
+    CL_HPM_EVENT_COMP_INSTR = 10,
+    CL_HPM_EVENT_PIPE_STALL = 11
+} cl_hpm_event_bit_t;
+
 static inline uint32_t cl_read_mhartid(void) {
     uint32_t hart;
     __asm__ volatile ("csrr %0, mhartid" : "=r"(hart));
@@ -36,6 +75,75 @@ static inline uint32_t cl_read_mhartid(void) {
 
 static inline void cl_fence(void) {
     __asm__ volatile ("fence rw, rw" ::: "memory");
+}
+
+static inline uint32_t cl_read_csr_mcountinhibit(void) {
+    uint32_t val;
+    __asm__ volatile ("csrr %0, mcountinhibit" : "=r"(val));
+    return val;
+}
+
+static inline void cl_write_csr_mcountinhibit(uint32_t val) {
+    __asm__ volatile ("csrw mcountinhibit, %0" :: "r"(val) : "memory");
+}
+
+static inline void cl_write_csr_mhpmcounter3(uint32_t val) {
+    __asm__ volatile ("csrw mhpmcounter3, %0" :: "r"(val) : "memory");
+}
+
+static inline void cl_write_csr_mhpmcounter3h(uint32_t val) {
+    __asm__ volatile ("csrw mhpmcounter3h, %0" :: "r"(val) : "memory");
+}
+
+static inline uint32_t cl_read_csr_mhpmcounter3(void) {
+    uint32_t val;
+    __asm__ volatile ("csrr %0, mhpmcounter3" : "=r"(val));
+    return val;
+}
+
+static inline uint32_t cl_read_csr_mhpmcounter3h(void) {
+    uint32_t val;
+    __asm__ volatile ("csrr %0, mhpmcounter3h" : "=r"(val));
+    return val;
+}
+
+static inline uint64_t cl_read_mhpmcounter3_64(void) {
+    uint32_t hi0, lo, hi1;
+    do {
+        hi0 = cl_read_csr_mhpmcounter3h();
+        lo = cl_read_csr_mhpmcounter3();
+        hi1 = cl_read_csr_mhpmcounter3h();
+    } while (hi0 != hi1);
+    return ((uint64_t)hi1 << 32) | (uint64_t)lo;
+}
+
+static inline void cl_perf_mhpmcounter3_set_event(cl_hpm_event_bit_t event_bit) {
+    uint32_t sel = (event_bit < 32u) ? (1u << event_bit) : 0u;
+    __asm__ volatile ("csrw mhpmevent3, %0" :: "r"(sel) : "memory");
+}
+
+static inline void cl_perf_mhpmcounter3_reset(void) {
+    cl_write_csr_mhpmcounter3(0u);
+    cl_write_csr_mhpmcounter3h(0u);
+}
+
+static inline void cl_perf_mhpmcounter3_enable(void) {
+    uint32_t inhibit = cl_read_csr_mcountinhibit();
+    inhibit &= ~(1u << 3);
+    cl_write_csr_mcountinhibit(inhibit);
+}
+
+static inline void cl_perf_mhpmcounter3_disable(void) {
+    uint32_t inhibit = cl_read_csr_mcountinhibit();
+    inhibit |= (1u << 3);
+    cl_write_csr_mcountinhibit(inhibit);
+}
+
+static inline void cl_perf_mhpmcounter3_config(cl_hpm_event_bit_t event_bit) {
+    cl_perf_mhpmcounter3_disable();
+    cl_perf_mhpmcounter3_set_event(event_bit);
+    cl_perf_mhpmcounter3_reset();
+    cl_perf_mhpmcounter3_enable();
 }
 
 static inline void cl_mmio_write(uint32_t addr, uint32_t value) {
