@@ -38,19 +38,6 @@
 #define CL_DMA_LEN_ADDR           (CL_DMA_BASE_ADDR + 0x0008u)
 #define CL_DMA_WAIT_ADDR          (CL_DMA_BASE_ADDR + 0x000Cu)
 
-/*
- * Performance counter CSRs (RV32).
- * This cluster configuration implements NUM_MHPMCOUNTERS=1, i.e. mhpmcounter3.
- */
-#define CL_CSR_MCOUNTINHIBIT      0x320u
-#define CL_CSR_MHPMEVENT3         0x323u
-#define CL_CSR_MCYCLE             0xB00u
-#define CL_CSR_MCYCLEH            0xB80u
-#define CL_CSR_MINSTRET           0xB02u
-#define CL_CSR_MINSTRETH          0xB82u
-#define CL_CSR_MHPMCOUNTER3       0xB03u
-#define CL_CSR_MHPMCOUNTER3H      0xB83u
-
 /* Event selector bits from CV32E40P perf counter docs. */
 typedef enum {
     CL_HPM_EVENT_CYCLES = 0,
