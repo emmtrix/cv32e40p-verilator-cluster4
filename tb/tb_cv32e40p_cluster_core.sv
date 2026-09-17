@@ -40,6 +40,12 @@ module tb_cv32e40p_cluster_core #(
     localparam logic [31:0] MMADDR_DMA_DST_STRIDE = MMADDR_DMA_BASE + 32'h0014;
     localparam logic [31:0] MMADDR_DMA_COUNT  = MMADDR_DMA_BASE + 32'h0018;
 
+    // Response classes of the core data port. Each class has its own latency,
+    // so mixing outstanding classes would reorder rvalid towards the core.
+    localparam logic [1:0] REQ_CLASS_LOCAL  = 2'd0;
+    localparam logic [1:0] REQ_CLASS_SHARED = 2'd1;
+    localparam logic [1:0] REQ_CLASS_DMA    = 2'd2;
+
     logic                  core_data_req;
     logic                  core_data_gnt;
     logic                  core_data_rvalid;
@@ -86,6 +92,11 @@ module tb_cv32e40p_cluster_core #(
     logic dma_active;
     logic dma_busy;
     logic dma_mmio_rvalid_q;
+
+    logic [1:0] core_req_class;
+    logic [1:0] outstanding_class_q;
+    logic [2:0] outstanding_cnt_q;
+    logic       core_req_class_ok;
 
     cv32e40p_top #(
         .COREV_PULP(0),
@@ -151,11 +162,16 @@ module tb_cv32e40p_cluster_core #(
                           (core_data_addr == MMADDR_DMA_WAIT));
     assign core_is_shared_mem = (core_is_remote_spm || core_is_shared) && !core_is_dma;
 
-    assign local_spm_en = core_data_req && core_is_local_spm;
+    assign core_req_class = core_is_local_spm ? REQ_CLASS_LOCAL :
+                            core_is_dma      ? REQ_CLASS_DMA   : REQ_CLASS_SHARED;
+    assign core_req_class_ok = (outstanding_cnt_q == '0) ||
+                               (outstanding_class_q == core_req_class);
+
+    assign local_spm_en = core_data_req && core_is_local_spm && core_req_class_ok;
 
     assign dma_busy = (dma_active === 1'b1);
 
-    assign cpu_shared_req.req   = core_data_req && core_is_shared_mem;
+    assign cpu_shared_req.req   = core_data_req && core_is_shared_mem && core_req_class_ok;
     assign cpu_shared_req.addr  = core_data_addr;
     assign cpu_shared_req.we    = core_data_we;
     assign cpu_shared_req.be    = core_data_be;
@@ -251,7 +267,7 @@ module tb_cv32e40p_cluster_core #(
         core_data_gnt = 1'b0;
         if (local_spm_en) begin
             core_data_gnt = 1'b1;
-        end else if (core_data_req && core_is_dma) begin
+        end else if (core_data_req && core_is_dma && core_req_class_ok) begin
             if (core_data_we) begin
                 if (core_data_addr == MMADDR_DMA_LEN)
                     core_data_gnt = (dma_queue_full === 1'b1) ? 1'b0 : 1'b1;
@@ -272,6 +288,22 @@ module tb_cv32e40p_cluster_core #(
             dma_mmio_rvalid_q <= 1'b0;
         else
             dma_mmio_rvalid_q <= core_data_req && core_data_gnt && core_is_dma;
+    end
+
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if (!rst_ni) begin
+            outstanding_class_q <= REQ_CLASS_LOCAL;
+            outstanding_cnt_q   <= '0;
+        end else begin
+            if (core_data_req && core_data_gnt)
+                outstanding_class_q <= core_req_class;
+
+            unique case ({core_data_req && core_data_gnt, core_data_rvalid})
+                2'b10:   outstanding_cnt_q <= outstanding_cnt_q + 3'd1;
+                2'b01:   outstanding_cnt_q <= outstanding_cnt_q - 3'd1;
+                default: outstanding_cnt_q <= outstanding_cnt_q;
+            endcase
+        end
     end
 
     always_comb begin
