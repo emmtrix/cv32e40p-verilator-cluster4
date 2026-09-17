@@ -11,6 +11,10 @@ module tb_core_dma_engine #(
     input  logic [31:0] cfg_src_i,
     input  logic cfg_dst_valid_i,
     input  logic [31:0] cfg_dst_i,
+    input  logic cfg_stride_valid_i,
+    input  logic [31:0] cfg_stride_i,
+    input  logic cfg_count_valid_i,
+    input  logic [31:0] cfg_count_i,
     input  logic cfg_len_valid_i,
     input  logic [31:0] cfg_len_i,
 
@@ -34,10 +38,14 @@ module tb_core_dma_engine #(
 
     logic [31:0] cfg_src_q;
     logic [31:0] cfg_dst_q;
+    logic [31:0] cfg_stride_q;
+    logic [31:0] cfg_count_q;
 
     logic [31:0] q_src [DMA_QUEUE_SLOTS];
     logic [31:0] q_dst [DMA_QUEUE_SLOTS];
     logic [31:0] q_len [DMA_QUEUE_SLOTS];
+    logic [31:0] q_stride [DMA_QUEUE_SLOTS];
+    logic [31:0] q_reps [DMA_QUEUE_SLOTS];
     logic [SLOT_W-1:0] q_head_q;
     logic [SLOT_W-1:0] q_tail_q;
     logic [COUNT_W-1:0] q_count_q;
@@ -47,6 +55,9 @@ module tb_core_dma_engine #(
     logic [31:0] cur_src_q;
     logic [31:0] cur_dst_q;
     logic [31:0] cur_len_q;
+    logic [31:0] chunk_len_q;
+    logic [31:0] cur_stride_q;
+    logic [31:0] cur_reps_left_q;
     logic [31:0] rd_word_q;
 
     logic [SLOT_W-1:0] next_head;
@@ -91,6 +102,8 @@ module tb_core_dma_engine #(
         if (!rst_ni) begin
             cfg_src_q <= '0;
             cfg_dst_q <= '0;
+            cfg_stride_q <= '0;
+            cfg_count_q <= '0;
             q_head_q <= '0;
             q_tail_q <= '0;
             q_count_q <= '0;
@@ -98,21 +111,31 @@ module tb_core_dma_engine #(
             cur_src_q <= '0;
             cur_dst_q <= '0;
             cur_len_q <= '0;
+            chunk_len_q <= '0;
+            cur_stride_q <= '0;
+            cur_reps_left_q <= '0;
             rd_word_q <= '0;
         end else begin
             if (cfg_src_valid_i)
                 cfg_src_q <= cfg_src_i;
             if (cfg_dst_valid_i)
                 cfg_dst_q <= cfg_dst_i;
+            if (cfg_stride_valid_i)
+                cfg_stride_q <= cfg_stride_i;
+            if (cfg_count_valid_i)
+                cfg_count_q <= cfg_count_i;
 
             if (cfg_len_valid_i && (q_count_q < DMA_QUEUE_SLOTS)) begin
                 q_src[q_tail_q] <= cfg_src_q;
                 q_dst[q_tail_q] <= cfg_dst_q;
                 q_len[q_tail_q] <= cfg_len_i;
+                q_stride[q_tail_q] <= cfg_stride_q;
+                q_reps[q_tail_q] <= (cfg_count_q == 0) ? 32'd1 : cfg_count_q;
                 q_tail_q <= next_tail;
                 q_count_q <= q_count_q + 1'b1;
                 if ($test$plusargs("dma_debug"))
-                    $display("[DMA] enqueue src=%08x dst=%08x len=%0d", cfg_src_q, cfg_dst_q, cfg_len_i);
+                    $display("[DMA] enqueue src=%08x dst=%08x len=%0d stride=%0d count=%0d",
+                             cfg_src_q, cfg_dst_q, cfg_len_i, cfg_stride_q, cfg_count_q);
             end
 
             case (state_q)
@@ -121,12 +144,17 @@ module tb_core_dma_engine #(
                         cur_src_q <= q_src[q_head_q];
                         cur_dst_q <= q_dst[q_head_q];
                         cur_len_q <= q_len[q_head_q];
+                        chunk_len_q <= q_len[q_head_q];
+                        cur_stride_q <= q_stride[q_head_q];
+                        cur_reps_left_q <= q_reps[q_head_q] - 1'b1;
                         q_head_q <= next_head;
                         q_count_q <= q_count_q - 1'b1;
                         if (q_len[q_head_q] != 0) begin
                             state_q <= DMA_RD_REQ;
                             if ($test$plusargs("dma_debug"))
-                                $display("[DMA] start src=%08x dst=%08x len=%0d", q_src[q_head_q], q_dst[q_head_q], q_len[q_head_q]);
+                                $display("[DMA] start src=%08x dst=%08x len=%0d stride=%0d reps=%0d",
+                                         q_src[q_head_q], q_dst[q_head_q], q_len[q_head_q],
+                                         q_stride[q_head_q], q_reps[q_head_q]);
                         end
                     end
                 end
@@ -151,15 +179,25 @@ module tb_core_dma_engine #(
 
                 DMA_WR_WAIT: begin
                     if (rsp_i.rvalid) begin
-                        cur_src_q <= cur_src_q + 1;
                         cur_dst_q <= cur_dst_q + 1;
-                        cur_len_q <= cur_len_q - 1;
                         if (cur_len_q == 1) begin
-                            state_q <= DMA_IDLE;
-                            if ($test$plusargs("dma_debug"))
-                                $display("[DMA] done");
-                        end else
+                            if (cur_reps_left_q == 0) begin
+                                cur_src_q <= cur_src_q + 1;
+                                cur_len_q <= cur_len_q - 1;
+                                state_q <= DMA_IDLE;
+                                if ($test$plusargs("dma_debug"))
+                                    $display("[DMA] done");
+                            end else begin
+                                cur_src_q <= cur_src_q + 1 + (cur_stride_q - chunk_len_q);
+                                cur_len_q <= chunk_len_q;
+                                cur_reps_left_q <= cur_reps_left_q - 1'b1;
+                                state_q <= DMA_RD_REQ;
+                            end
+                        end else begin
+                            cur_src_q <= cur_src_q + 1;
+                            cur_len_q <= cur_len_q - 1;
                             state_q <= DMA_RD_REQ;
+                        end
                     end
                 end
                 default: state_q <= DMA_IDLE;

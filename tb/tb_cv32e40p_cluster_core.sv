@@ -36,6 +36,8 @@ module tb_cv32e40p_cluster_core #(
     localparam logic [31:0] MMADDR_DMA_DST  = MMADDR_DMA_BASE + 32'h0004;
     localparam logic [31:0] MMADDR_DMA_LEN  = MMADDR_DMA_BASE + 32'h0008;
     localparam logic [31:0] MMADDR_DMA_WAIT = MMADDR_DMA_BASE + 32'h000C;
+    localparam logic [31:0] MMADDR_DMA_STRIDE = MMADDR_DMA_BASE + 32'h0010;
+    localparam logic [31:0] MMADDR_DMA_COUNT  = MMADDR_DMA_BASE + 32'h0014;
 
     logic                  core_data_req;
     logic                  core_data_gnt;
@@ -75,6 +77,8 @@ module tb_cv32e40p_cluster_core #(
 
     logic dma_cfg_src_valid;
     logic dma_cfg_dst_valid;
+    logic dma_cfg_stride_valid;
+    logic dma_cfg_count_valid;
     logic dma_cfg_len_valid;
     logic dma_queue_full;
     logic dma_active;
@@ -138,6 +142,8 @@ module tb_cv32e40p_cluster_core #(
     assign core_is_dma = core_is_shared &&
                          ((core_data_addr == MMADDR_DMA_SRC) ||
                           (core_data_addr == MMADDR_DMA_DST) ||
+                          (core_data_addr == MMADDR_DMA_STRIDE) ||
+                          (core_data_addr == MMADDR_DMA_COUNT) ||
                           (core_data_addr == MMADDR_DMA_LEN) ||
                           (core_data_addr == MMADDR_DMA_WAIT));
     assign core_is_shared_mem = (core_is_remote_spm || core_is_shared) && !core_is_dma;
@@ -173,6 +179,8 @@ module tb_cv32e40p_cluster_core #(
 
     assign dma_cfg_src_valid = core_data_req && core_data_gnt && core_data_we && (core_data_addr == MMADDR_DMA_SRC);
     assign dma_cfg_dst_valid = core_data_req && core_data_gnt && core_data_we && (core_data_addr == MMADDR_DMA_DST);
+    assign dma_cfg_stride_valid = core_data_req && core_data_gnt && core_data_we && (core_data_addr == MMADDR_DMA_STRIDE);
+    assign dma_cfg_count_valid = core_data_req && core_data_gnt && core_data_we && (core_data_addr == MMADDR_DMA_COUNT);
     assign dma_cfg_len_valid = core_data_req && core_data_gnt && core_data_we && (core_data_addr == MMADDR_DMA_LEN);
 
     tb_core_dma_engine #(
@@ -184,6 +192,10 @@ module tb_cv32e40p_cluster_core #(
         .cfg_src_i     (core_data_wdata),
         .cfg_dst_valid_i(dma_cfg_dst_valid),
         .cfg_dst_i     (core_data_wdata),
+        .cfg_stride_valid_i(dma_cfg_stride_valid),
+        .cfg_stride_i  (core_data_wdata),
+        .cfg_count_valid_i(dma_cfg_count_valid),
+        .cfg_count_i   (core_data_wdata),
         .cfg_len_valid_i(dma_cfg_len_valid),
         .cfg_len_i     (core_data_wdata),
         .queue_full_o  (dma_queue_full),

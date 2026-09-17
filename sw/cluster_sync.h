@@ -37,6 +37,8 @@
 #define CL_DMA_DST_ADDR           (CL_DMA_BASE_ADDR + 0x0004u)
 #define CL_DMA_LEN_ADDR           (CL_DMA_BASE_ADDR + 0x0008u)
 #define CL_DMA_WAIT_ADDR          (CL_DMA_BASE_ADDR + 0x000Cu)
+#define CL_DMA_STRIDE_ADDR        (CL_DMA_BASE_ADDR + 0x0010u)
+#define CL_DMA_COUNT_ADDR         (CL_DMA_BASE_ADDR + 0x0014u)
 
 /* Event selector bits from CV32E40P perf counter docs. */
 typedef enum {
@@ -178,7 +180,24 @@ static inline void cl_gpevt_clear(uint32_t barrier_id) {
 static inline void cl_dma_memcpy(void *dst, const void *src, uint32_t len_bytes) {
     cl_mmio_write(CL_DMA_SRC_ADDR, (uint32_t)(uintptr_t)src);
     cl_mmio_write(CL_DMA_DST_ADDR, (uint32_t)(uintptr_t)dst);
+    cl_mmio_write(CL_DMA_STRIDE_ADDR, 0u);
+    cl_mmio_write(CL_DMA_COUNT_ADDR, 0u);
     cl_mmio_write(CL_DMA_LEN_ADDR, len_bytes);
+}
+
+/*
+ * Strided gather copy: copies `count` chunks of `chunk_bytes` from src to a
+ * packed (contiguous) dst, advancing the source pointer by `stride_bytes`
+ * between chunks. A count of 0 or 1 behaves like a single cl_dma_memcpy.
+ */
+static inline void cl_dma_memcpy_strided(void *dst, const void *src,
+                                          uint32_t chunk_bytes, uint32_t stride_bytes,
+                                          uint32_t count) {
+    cl_mmio_write(CL_DMA_SRC_ADDR, (uint32_t)(uintptr_t)src);
+    cl_mmio_write(CL_DMA_DST_ADDR, (uint32_t)(uintptr_t)dst);
+    cl_mmio_write(CL_DMA_STRIDE_ADDR, stride_bytes);
+    cl_mmio_write(CL_DMA_COUNT_ADDR, count);
+    cl_mmio_write(CL_DMA_LEN_ADDR, chunk_bytes);
 }
 
 static inline void cl_dma_wait(void) {
