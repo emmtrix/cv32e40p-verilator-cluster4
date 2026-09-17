@@ -130,7 +130,7 @@ module tb_core_dma_engine #(
                 q_dst[q_tail_q] <= cfg_dst_q;
                 q_len[q_tail_q] <= cfg_len_i;
                 q_stride[q_tail_q] <= cfg_stride_q;
-                q_reps[q_tail_q] <= (cfg_count_q == 0) ? 32'd1 : cfg_count_q;
+                q_reps[q_tail_q] <= cfg_count_q;
                 q_tail_q <= next_tail;
                 q_count_q <= q_count_q + 1'b1;
                 if ($test$plusargs("dma_debug"))
@@ -146,10 +146,10 @@ module tb_core_dma_engine #(
                         cur_len_q <= q_len[q_head_q];
                         chunk_len_q <= q_len[q_head_q];
                         cur_stride_q <= q_stride[q_head_q];
-                        cur_reps_left_q <= q_reps[q_head_q] - 1'b1;
                         q_head_q <= next_head;
                         q_count_q <= q_count_q - 1'b1;
-                        if (q_len[q_head_q] != 0) begin
+                        if ((q_len[q_head_q] != 0) && (q_reps[q_head_q] != 0)) begin
+                            cur_reps_left_q <= q_reps[q_head_q] - 1'b1;
                             state_q <= DMA_RD_REQ;
                             if ($test$plusargs("dma_debug"))
                                 $display("[DMA] start src=%08x dst=%08x len=%0d stride=%0d reps=%0d",

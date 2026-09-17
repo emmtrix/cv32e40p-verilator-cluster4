@@ -181,14 +181,15 @@ static inline void cl_dma_memcpy(void *dst, const void *src, uint32_t len_bytes)
     cl_mmio_write(CL_DMA_SRC_ADDR, (uint32_t)(uintptr_t)src);
     cl_mmio_write(CL_DMA_DST_ADDR, (uint32_t)(uintptr_t)dst);
     cl_mmio_write(CL_DMA_STRIDE_ADDR, 0u);
-    cl_mmio_write(CL_DMA_COUNT_ADDR, 0u);
+    cl_mmio_write(CL_DMA_COUNT_ADDR, 1u);
     cl_mmio_write(CL_DMA_LEN_ADDR, len_bytes);
 }
 
 /*
  * Strided gather copy: copies `count` chunks of `chunk_bytes` from src to a
  * packed (contiguous) dst, advancing the source pointer by `stride_bytes`
- * between chunks. A count of 0 or 1 behaves like a single cl_dma_memcpy.
+ * between chunks. A count of 0 copies nothing; count of 1 behaves like a
+ * single cl_dma_memcpy.
  */
 static inline void cl_dma_memcpy_strided(void *dst, const void *src,
                                           uint32_t chunk_bytes, uint32_t stride_bytes,
