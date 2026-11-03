@@ -8,6 +8,9 @@ module tb_cv32e40p_cluster_wrapper #(
     parameter logic [31:0] BOOT_ADDR = 32'h00000080,
     parameter logic [31:0] DM_HALTADDRESS = 32'h1A110800,
     parameter int unsigned SPM_ADDR_WIDTH = 18,
+    // Each scratchpad occupies a 2**SPM_STRIDE_WIDTH window; the part beyond
+    // 2**SPM_ADDR_WIDTH is left unmapped and acts as a stack guard gap.
+    parameter int unsigned SPM_STRIDE_WIDTH = 19,
     parameter logic [31:0] SPM_BASE_ADDR = 32'h1800_0000,
     parameter int unsigned SHARED_MEM_EXTRA_LATENCY = 20,
     parameter int unsigned DMA_QUEUE_SLOTS = 3
@@ -22,7 +25,7 @@ module tb_cv32e40p_cluster_wrapper #(
 );
 
     localparam int unsigned CORE_IDX_W = (NUM_CORES > 1) ? $clog2(NUM_CORES) : 1;
-    localparam logic [31:0] SPM_END_ADDR = SPM_BASE_ADDR + (NUM_CORES * (1 << SPM_ADDR_WIDTH));
+    localparam logic [31:0] SPM_END_ADDR = SPM_BASE_ADDR + (NUM_CORES * (1 << SPM_STRIDE_WIDTH));
     localparam int unsigned GLOBAL_DATA_EXTRA_LATENCY = SHARED_MEM_EXTRA_LATENCY;
 
     tb_mem_types_pkg::tb_mem_req_t core_instr_req [NUM_CORES];
@@ -72,8 +75,10 @@ module tb_cv32e40p_cluster_wrapper #(
     logic [CORE_IDX_W-1:0] data_pending_spm_target_q;
 
     initial begin : checks
-        if ((SPM_BASE_ADDR & ((NUM_CORES << SPM_ADDR_WIDTH) - 1)) != 0)
-            $fatal(1, "[CLUSTER] SPM_BASE_ADDR must be aligned to NUM_CORES * 2**SPM_ADDR_WIDTH");
+        if (SPM_STRIDE_WIDTH <= SPM_ADDR_WIDTH)
+            $fatal(1, "[CLUSTER] SPM_STRIDE_WIDTH must be greater than SPM_ADDR_WIDTH (guard gap required)");
+        if ((SPM_BASE_ADDR & ((NUM_CORES << SPM_STRIDE_WIDTH) - 1)) != 0)
+            $fatal(1, "[CLUSTER] SPM_BASE_ADDR must be aligned to NUM_CORES * 2**SPM_STRIDE_WIDTH");
         if (INSTR_RDATA_WIDTH != 32)
             $fatal(1, "[CLUSTER] Struct refactor currently expects INSTR_RDATA_WIDTH=32");
     end
@@ -87,6 +92,7 @@ module tb_cv32e40p_cluster_wrapper #(
                 .BOOT_ADDR        (BOOT_ADDR),
                 .DM_HALTADDRESS   (DM_HALTADDRESS),
                 .SPM_ADDR_WIDTH   (SPM_ADDR_WIDTH),
+                .SPM_STRIDE_WIDTH (SPM_STRIDE_WIDTH),
                 .SPM_BASE_ADDR    (SPM_BASE_ADDR),
                 .DMA_QUEUE_SLOTS  (DMA_QUEUE_SLOTS)
             ) core_i (
@@ -142,8 +148,9 @@ module tb_cv32e40p_cluster_wrapper #(
 
     assign data_req_is_spm =
         (data_shared_req.addr >= SPM_BASE_ADDR) &&
-        (data_shared_req.addr <  SPM_END_ADDR);
-    assign data_req_spm_target = data_shared_req.addr[SPM_ADDR_WIDTH +: CORE_IDX_W];
+        (data_shared_req.addr <  SPM_END_ADDR) &&
+        (data_shared_req.addr[SPM_STRIDE_WIDTH-1:SPM_ADDR_WIDTH] == '0);
+    assign data_req_spm_target = data_shared_req.addr[SPM_STRIDE_WIDTH +: CORE_IDX_W];
 
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin

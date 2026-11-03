@@ -24,12 +24,19 @@ _start:
 	addi  gp, gp, %pcrel_lo(1b)
 .option pop
 
-/* initialize stack pointer */
-	la sp, __stack_end
+/* initialize stack pointer: the stack occupies the first __stack_size bytes
+   of this core's scratchpad and grows downward towards the guard gap below
+   it (see bsp/link.ld). sp = __spm_base + hartid * __spm_stride + __stack_size */
 	csrr t0, mhartid
-	li t1, 0x400
-	mul t0, t0, t1
-	sub sp, sp, t0
+	lui  t1, %hi(__spm_stride)
+	addi t1, t1, %lo(__spm_stride)
+	mul  t0, t0, t1
+	lui  sp, %hi(__spm_base)
+	addi sp, sp, %lo(__spm_base)
+	add  sp, sp, t0
+	lui  t1, %hi(__stack_size)
+	addi t1, t1, %lo(__stack_size)
+	add  sp, sp, t1
 
 /* set vector table address */
 	la a0, __vector_start

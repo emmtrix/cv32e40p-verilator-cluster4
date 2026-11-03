@@ -37,7 +37,7 @@ def make_env_overrides() -> dict[str, str]:
     )
 
 
-def run_make(*args: str) -> subprocess.CompletedProcess[str]:
+def run_make(*args: str, expect_success: bool = True) -> subprocess.CompletedProcess[str]:
     make_env = os.environ.copy()
     make_env.update(make_env_overrides())
     result = subprocess.run(
@@ -48,7 +48,7 @@ def run_make(*args: str) -> subprocess.CompletedProcess[str]:
         text=True,
         check=False,
     )
-    if result.returncode != 0:
+    if expect_success and result.returncode != 0:
         pytest.fail(
             f"make {' '.join(args)} failed with exit code {result.returncode}\n"
             f"stdout:\n{result.stdout}\n"
@@ -110,3 +110,42 @@ def test_latency_scratchpad_faster_than_shared() -> None:
     assert spm_cycles < shared_cycles, (
         f"Scratchpad ({spm_cycles}) should be faster than shared memory ({shared_cycles})"
     )
+
+
+def test_custom_stack_size_demo_pass() -> None:
+    """A non-default STACK_SIZE moves SPM_DATA_ADDR and still runs cleanly."""
+    result = run_make("APP=scratchpad-demo", "STACK_SIZE=8192", "run")
+    output = result.stdout + result.stderr
+
+    assert "PASS" in output
+    assert "[TB] CLUSTER EXIT SUCCESS" in output
+
+
+@pytest.mark.parametrize(
+    "stack_size, stack_top",
+    [
+        (None, 0x1808_4000),   # default 16 KiB
+        (4096, 0x1808_1000),
+    ],
+)
+def test_stack_overflow_hits_guard_gap(stack_size: int | None, stack_top: int) -> None:
+    """Hart 1's stack sits at the start of its SPM; overflowing it must fault
+    in the unmapped guard gap that follows core 0's scratchpad."""
+    import re
+
+    args = ["APP=stack-overflow-test", "run"]
+    if stack_size is not None:
+        args.append(f"STACK_SIZE={stack_size}")
+    result = run_make(*args, expect_success=False)
+    output = result.stdout + result.stderr
+
+    assert result.returncode != 0, f"Simulation was expected to fail:\n{output}"
+    assert "STACK CHECK PASS" in output, output
+    assert f"stack=[0x18080000, 0x{stack_top:08x})" in output, output
+    assert "STACK OVERFLOW START" in output, output
+
+    m = re.search(r"\[TB\] UNMAPPED WRITE ACCESS addr=0x([0-9a-fA-F]{8})", output)
+    assert m is not None, f"Expected guard-gap fault, got:\n{output}"
+    fault_addr = int(m.group(1), 16)
+    # Core 0's guard gap: 0x1804_0000 .. 0x1807_FFFF, just below SPM_ADDR(1).
+    assert 0x1804_0000 <= fault_addr < 0x1808_0000, hex(fault_addr)

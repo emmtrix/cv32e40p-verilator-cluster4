@@ -19,7 +19,7 @@ int main(void) {
     if (hart != 0u)
         return 0;
 
-    volatile uint32_t *p = SPM_PTR(0);
+    volatile uint32_t *p = SPM_DATA_PTR(0);
 
     printf("[SPM-STRESS] phase 1: back-to-back unrolled stores\n");
     p[0]  = 0x11111111u;

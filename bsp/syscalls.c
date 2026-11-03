@@ -278,10 +278,11 @@ int _brk(void *addr)
 void *_sbrk(ptrdiff_t incr)
 {
   char *old_brk = brk;
-  register long sp asm("sp");
 
+  /* Stacks live in the per-core scratchpads, so only the end of the heap
+     region bounds the break. */
   char *new_brk = brk += incr;
-  if (new_brk < (char *) sp && new_brk < __heap_end)
+  if (new_brk < __heap_end)
     {
       brk = new_brk;
 

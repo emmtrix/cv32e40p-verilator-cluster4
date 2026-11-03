@@ -9,7 +9,6 @@
 
 #define NWORDS 128u
 #define ROUNDS 256u
-#define SPM_WORD_OFFSET 128u
 
 static uint32_t run_load_sum(const volatile uint32_t *buf, uint32_t rounds) {
     uint32_t acc = 0u;
@@ -37,7 +36,7 @@ int main(void) {
     }
 
     static volatile uint32_t shared_buf[NWORDS];
-    volatile uint32_t *spm_buf = SPM_PTR(hart) + SPM_WORD_OFFSET;
+    volatile uint32_t *spm_buf = SPM_DATA_PTR(hart);
 
     for (uint32_t i = 0u; i < NWORDS; ++i) {
         uint32_t v = i * 5u + 3u;

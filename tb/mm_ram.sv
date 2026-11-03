@@ -480,6 +480,37 @@ module mm_ram
         end
     end
 
+    // Unmapped data accesses (including the scratchpad guard gaps, which the
+    // cluster routes here) terminate the simulation. CV32E40P has no bus-error
+    // input, so this is the testbench's stand-in for an access fault.
+    logic data_addr_mapped;
+    assign data_addr_mapped =
+           data_addr_i < 2 ** RAM_ADDR_WIDTH
+        || ((data_addr_i >= dm_halt_addr_i) &&
+            (data_addr_i < (dm_halt_addr_i + (2 ** DBG_ADDR_WIDTH))))
+        || data_addr_i == MMADDR_PRINT
+        || data_addr_i == MMADDR_TIMERREG
+        || data_addr_i == MMADDR_TIMERVAL
+        || data_addr_i == MMADDR_DBG
+        || data_addr_i == MMADDR_TESTSTATUS
+        || data_addr_i == MMADDR_EXIT
+        || data_addr_i == MMADDR_SIGBEGIN
+        || data_addr_i == MMADDR_SIGEND
+        || data_addr_i == MMADDR_SIGDUMP
+        || data_addr_i == MMADDR_RNDNUM
+        || data_addr_i == MMADDR_TICKS
+        || data_addr_i == MMADDR_EU_WAIT_BARRIER
+        || data_addr_i == MMADDR_EU_SET_BARRIER
+        || data_addr_i == MMADDR_EU_EVT_WAIT
+        || data_addr_i == MMADDR_EU_GPEVT_CLEAR
+        || data_addr_i[31:16] == MMADDR_RNDSTALL;
+
+    always_ff @(posedge clk_i) begin: unmapped_access_check
+        if (rst_ni && data_req_i && data_gnt_o && !data_addr_mapped)
+            $fatal(1, "[TB] UNMAPPED %s ACCESS addr=0x%08x",
+                   data_we_i ? "WRITE" : "READ", data_addr_i);
+    end
+
 `ifndef VERILATOR
     // signal out of bound writes
     out_of_bounds_write: assert property
