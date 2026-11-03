@@ -12,12 +12,29 @@
 
 /*
  * Scratchpad memory (SPM) address helpers.
- * SPM_SIZE must match the RTL parameter 2**SPM_ADDR_WIDTH (default 256 KiB).
+ * SPM_SIZE must match the RTL parameter 2**SPM_ADDR_WIDTH (default 256 KiB)
+ * and SPM_STRIDE must match 2**SPM_STRIDE_WIDTH (default 512 KiB). Only the
+ * first SPM_SIZE bytes of each SPM_STRIDE window are mapped; the remainder is
+ * an unmapped guard gap.
+ *
+ * Each core's stack occupies the first CL_STACK_SIZE bytes of its own SPM
+ * (growing downward from SPM_ADDR(core) + CL_STACK_SIZE). Use SPM_DATA_ADDR /
+ * SPM_DATA_PTR for the usable region after the stack. CL_STACK_SIZE is set by
+ * the Makefile (STACK_SIZE) and must match the linker's __stack_size.
  */
 #define SPM_BASE_ADDR  0x18000000u
 #define SPM_SIZE       262144u
-#define SPM_ADDR(core_id)  (SPM_BASE_ADDR + (uint32_t)(core_id) * SPM_SIZE)
+#define SPM_STRIDE     524288u
+#define SPM_ADDR(core_id)  (SPM_BASE_ADDR + (uint32_t)(core_id) * SPM_STRIDE)
 #define SPM_PTR(core_id)   ((volatile uint32_t *)SPM_ADDR(core_id))
+
+#ifndef CL_STACK_SIZE
+#define CL_STACK_SIZE  16384u
+#endif
+#define SPM_DATA_OFFSET        ((uint32_t)(CL_STACK_SIZE))
+#define SPM_DATA_SIZE          (SPM_SIZE - SPM_DATA_OFFSET)
+#define SPM_DATA_ADDR(core_id) (SPM_ADDR(core_id) + SPM_DATA_OFFSET)
+#define SPM_DATA_PTR(core_id)  ((volatile uint32_t *)SPM_DATA_ADDR(core_id))
 
 /*
  * Minimal EU-style barrier peripheral addresses implemented by tb/mm_ram.sv.

@@ -34,7 +34,7 @@ int main(void) {
     if (hart != 0u)
         return 0;
 
-    volatile uint32_t *spm = SPM_PTR(hart);
+    volatile uint32_t *spm = SPM_DATA_PTR(hart);
 
     /* ---- warm-up: touch both regions once ---- */
     spm[0] = 0u;

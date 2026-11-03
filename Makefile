@@ -27,6 +27,10 @@ VERI_BUILD_DIR := $(BUILD_DIR)/verilator
 VERI_OBJ_DIR := $(VERI_BUILD_DIR)/obj_dir
 
 APP ?= shared-memory-demo
+
+# Per-core stack size in bytes. The stack sits at the start of each core's
+# scratchpad; the rest of the scratchpad starts at SPM_DATA_ADDR(core).
+STACK_SIZE ?= 16384
 FW_ELF := $(FW_BUILD_DIR)/$(APP).elf
 FW_HEX := $(FW_BUILD_DIR)/$(APP).hex
 FW_MAP := $(FW_BUILD_DIR)/$(APP).map
@@ -38,6 +42,9 @@ BSP_LIB := $(FW_BUILD_DIR)/libcv-verif.a
 
 APP_SRC := sw/$(APP).c
 APP_OBJ := $(FW_BUILD_DIR)/$(APP).o
+
+# Rewritten only when STACK_SIZE changes, so dependents rebuild on change.
+STACK_SIZE_STAMP := $(FW_BUILD_DIR)/stack_size.stamp
 
 SV_TB_SRCS := \
 	tb/tb_top_verilator.sv \
@@ -62,7 +69,7 @@ MAXCYCLES ?= 20000000
 VERI_CFLAGS ?= -O2
 VERI_TRACE ?=
 
-.PHONY: all run firmware verilate clean
+.PHONY: all run firmware verilate clean FORCE
 
 all: run
 
@@ -76,9 +83,10 @@ $(FW_HEX): $(FW_ELF)
 	$(READELF) -a $< > $(FW_BUILD_DIR)/$(APP).readelf
 	$(OBJDUMP) -d -M no-aliases -M numeric -S $< > $(FW_BUILD_DIR)/$(APP).objdump
 
-$(FW_ELF): $(APP_OBJ) $(BSP_LIB) bsp/link.ld | $(FW_BUILD_DIR)
+$(FW_ELF): $(APP_OBJ) $(BSP_LIB) bsp/link.ld $(STACK_SIZE_STAMP) | $(FW_BUILD_DIR)
 	$(CC) $(CFLAGS) -nostartfiles -o $@ \
 		$(APP_OBJ) -T bsp/link.ld -L$(FW_BUILD_DIR) -lcv-verif \
+		-Wl,--defsym=__stack_size=$(STACK_SIZE) \
 		-Wl,-Map,$(FW_MAP) -lc -lgcc
 
 $(BSP_LIB): $(BSP_OBJS)
@@ -90,8 +98,11 @@ $(FW_BUILD_DIR)/%.o: bsp/%.S | $(FW_BUILD_DIR)
 $(FW_BUILD_DIR)/%.o: bsp/%.c | $(FW_BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(APP_OBJ): $(APP_SRC) sw/cluster_sync.h | $(FW_BUILD_DIR)
-	$(CC) $(CFLAGS) -I bsp -I sw -c $< -o $@
+$(APP_OBJ): $(APP_SRC) sw/cluster_sync.h $(STACK_SIZE_STAMP) | $(FW_BUILD_DIR)
+	$(CC) $(CFLAGS) -DCL_STACK_SIZE=$(STACK_SIZE) -I bsp -I sw -c $< -o $@
+
+$(STACK_SIZE_STAMP): FORCE | $(FW_BUILD_DIR)
+	@echo '$(STACK_SIZE)' | cmp -s - $@ || echo '$(STACK_SIZE)' > $@
 
 verilate: $(SIM_EXE)
 

@@ -34,7 +34,7 @@ int main(void) {
     cl_barrier_wait(&bar);
 
     /* --- Phase 1: local scratchpad writes --- */
-    volatile uint32_t *my_spm = SPM_PTR(hart);
+    volatile uint32_t *my_spm = SPM_DATA_PTR(hart);
     for (uint32_t i = 0; i < 8; i++)
         my_spm[i] = (hart << 16) | i;
 
@@ -43,7 +43,7 @@ int main(void) {
 
     /* --- Phase 2: remote scratchpad reads --- */
     uint32_t neighbor = (hart + 1u) % NUM_CORES;
-    volatile uint32_t *nb_spm = SPM_PTR(neighbor);
+    volatile uint32_t *nb_spm = SPM_DATA_PTR(neighbor);
 
     for (uint32_t i = 0; i < 8; i++) {
         uint32_t expected = (neighbor << 16) | i;

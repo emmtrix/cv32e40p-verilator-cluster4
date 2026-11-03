@@ -7,6 +7,9 @@ module tb_cv32e40p_cluster_core #(
     parameter logic [31:0] BOOT_ADDR = 32'h00000080,
     parameter logic [31:0] DM_HALTADDRESS = 32'h1A110800,
     parameter int unsigned SPM_ADDR_WIDTH = 18,
+    // Each scratchpad occupies a 2**SPM_STRIDE_WIDTH window; the part beyond
+    // 2**SPM_ADDR_WIDTH is left unmapped and acts as a stack guard gap.
+    parameter int unsigned SPM_STRIDE_WIDTH = 19,
     parameter logic [31:0] SPM_BASE_ADDR = 32'h1800_0000,
     parameter int unsigned DMA_QUEUE_SLOTS = 3
 ) (
@@ -30,7 +33,7 @@ module tb_cv32e40p_cluster_core #(
 );
 
     localparam int unsigned CORE_IDX_W = (NUM_CORES > 1) ? $clog2(NUM_CORES) : 1;
-    localparam logic [31:0] SPM_END_ADDR = SPM_BASE_ADDR + (NUM_CORES * (1 << SPM_ADDR_WIDTH));
+    localparam logic [31:0] SPM_END_ADDR = SPM_BASE_ADDR + (NUM_CORES * (1 << SPM_STRIDE_WIDTH));
     localparam logic [31:0] MMADDR_DMA_BASE = 32'h1500_3000;
     localparam logic [31:0] MMADDR_DMA_SRC  = MMADDR_DMA_BASE + 32'h0000;
     localparam logic [31:0] MMADDR_DMA_DST  = MMADDR_DMA_BASE + 32'h0004;
@@ -145,10 +148,13 @@ module tb_cv32e40p_cluster_core #(
     assign instr_req_o.be    = '0;
     assign instr_req_o.wdata = '0;
 
+    // Addresses in a guard gap are not SPM; they fall through to the shared
+    // path, where mm_ram flags them as unmapped.
     assign core_is_spm =
         (core_data_addr >= SPM_BASE_ADDR) &&
-        (core_data_addr <  SPM_END_ADDR);
-    assign core_spm_target = core_data_addr[SPM_ADDR_WIDTH +: CORE_IDX_W];
+        (core_data_addr <  SPM_END_ADDR) &&
+        (core_data_addr[SPM_STRIDE_WIDTH-1:SPM_ADDR_WIDTH] == '0);
+    assign core_spm_target = core_data_addr[SPM_STRIDE_WIDTH +: CORE_IDX_W];
     assign core_is_local_spm = core_is_spm && (core_spm_target == CORE_IDX_W'(CORE_ID));
     assign core_is_remote_spm = core_is_spm && (core_spm_target != CORE_IDX_W'(CORE_ID));
     assign core_is_shared = ~core_is_spm;

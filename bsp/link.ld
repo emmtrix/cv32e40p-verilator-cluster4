@@ -247,7 +247,8 @@ SECTIONS
   _end = .; PROVIDE (end = .);
   . = DATA_SEGMENT_END (.);
 
-  /* Heap grows upward towards end of ram */
+  /* Heap grows upward towards end of ram. Stacks do not live here; they are
+     placed in each core's local scratchpad (see below and crt0.S). */
   .heap                    : ALIGN(16)
   {
    PROVIDE(__heap_start = .);
@@ -257,13 +258,25 @@ SECTIONS
    . = __heap_end;
   } >ram
 
-  /* Stack grows downward from end of ram */
-  .stack (__heap_start)    : ALIGN(16) /* this is a requirement of the ABI(?) */
-  {
-   PROVIDE(__stack_start = __heap_start);
-   . = __heap_end;
-   PROVIDE(__stack_end = .);
-  } >ram
+  /* Per-core stacks: each core's stack occupies the first __stack_size bytes
+     of its own scratchpad and grows downward from SPM_ADDR(core) +
+     __stack_size. The scratchpads are spaced __spm_stride apart and only the
+     first __spm_size bytes of each window are mapped, so a stack overflow runs
+     into an unmapped guard gap and stops the simulation. These values must
+     match SPM_BASE_ADDR / SPM_ADDR_WIDTH / SPM_STRIDE_WIDTH in the RTL and
+     sw/cluster_sync.h. Override the stack size with
+     -Wl,--defsym=__stack_size=<bytes> (the Makefile's STACK_SIZE does this). */
+  PROVIDE(__stack_size = 0x4000);
+  __spm_base   = 0x18000000;
+  __spm_size   = 0x40000;
+  __spm_stride = 0x80000;
+  /* Start of the usable (non-stack) part of a scratchpad, as an offset from
+     SPM_ADDR(core). */
+  __spm_data_offset = __stack_size;
+  ASSERT(__stack_size > 0 && (__stack_size % 16) == 0,
+         "__stack_size must be a positive multiple of 16")
+  ASSERT(__stack_size <= __spm_size,
+         "__stack_size must not exceed the scratchpad size")
 
   /* Stabs debugging sections.  */
   .stab          0 : { *(.stab) }
