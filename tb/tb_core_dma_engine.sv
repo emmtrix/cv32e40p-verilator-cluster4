@@ -70,6 +70,8 @@ module tb_core_dma_engine #(
     logic [7:0] src_byte;
     logic [1:0] src_lane;
     logic [1:0] dst_lane;
+    logic word_step;
+    logic [31:0] step;
 
     always_comb begin
         next_head = (q_head_q == SLOT_W'(DMA_QUEUE_SLOTS - 1)) ? '0 : (q_head_q + 1'b1);
@@ -77,6 +79,11 @@ module tb_core_dma_engine #(
         src_lane = cur_src_q[1:0];
         dst_lane = cur_dst_q[1:0];
         src_byte = rd_word_q[(src_lane * 8) +: 8];
+
+        // Move a whole word when both ends are 4-byte aligned and a full word
+        // of this chunk is left; otherwise move one byte.
+        word_step = (src_lane == 2'b00) && (dst_lane == 2'b00) && (cur_len_q >= 32'd4);
+        step = word_step ? 32'd4 : 32'd1;
 
         req_o = '0;
         case (state_q)
@@ -91,8 +98,13 @@ module tb_core_dma_engine #(
                 req_o.req   = 1'b1;
                 req_o.addr  = {cur_dst_q[31:2], 2'b00};
                 req_o.we    = 1'b1;
-                req_o.be    = 4'b0001 << dst_lane;
-                req_o.wdata = {24'h0, src_byte} << (dst_lane * 8);
+                if (word_step) begin
+                    req_o.be    = 4'b1111;
+                    req_o.wdata = rd_word_q;
+                end else begin
+                    req_o.be    = 4'b0001 << dst_lane;
+                    req_o.wdata = {24'h0, src_byte} << (dst_lane * 8);
+                end
             end
             default: begin
                 req_o = '0;
@@ -190,25 +202,25 @@ module tb_core_dma_engine #(
 
                 DMA_WR_WAIT: begin
                     if (rsp_i.rvalid) begin
-                        if (cur_len_q == 1) begin
+                        if (cur_len_q == step) begin
                             if (cur_reps_left_q == 0) begin
-                                cur_src_q <= cur_src_q + 1;
-                                cur_dst_q <= cur_dst_q + 1;
-                                cur_len_q <= cur_len_q - 1;
+                                cur_src_q <= cur_src_q + step;
+                                cur_dst_q <= cur_dst_q + step;
+                                cur_len_q <= cur_len_q - step;
                                 state_q <= DMA_IDLE;
                                 if ($test$plusargs("dma_debug"))
                                     $display("[DMA] done");
                             end else begin
-                                cur_src_q <= cur_src_q + 1 + (cur_src_stride_q - chunk_len_q);
-                                cur_dst_q <= cur_dst_q + 1 + (cur_dst_stride_q - chunk_len_q);
+                                cur_src_q <= cur_src_q + step + (cur_src_stride_q - chunk_len_q);
+                                cur_dst_q <= cur_dst_q + step + (cur_dst_stride_q - chunk_len_q);
                                 cur_len_q <= chunk_len_q;
                                 cur_reps_left_q <= cur_reps_left_q - 1'b1;
                                 state_q <= DMA_RD_REQ;
                             end
                         end else begin
-                            cur_src_q <= cur_src_q + 1;
-                            cur_dst_q <= cur_dst_q + 1;
-                            cur_len_q <= cur_len_q - 1;
+                            cur_src_q <= cur_src_q + step;
+                            cur_dst_q <= cur_dst_q + step;
+                            cur_len_q <= cur_len_q - step;
                             state_q <= DMA_RD_REQ;
                         end
                     end
