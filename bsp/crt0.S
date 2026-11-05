@@ -43,6 +43,11 @@ _start:
 	ori a0, a0, 1 /*vector mode = vectored */
 	csrw mtvec, a0
 
+/* Only hart 0 clears .bss and runs the C library init. The other harts wait
+   for it to finish, then all harts call main. */
+	csrr t0, mhartid
+	bnez t0, .Lhart_wait_init
+
 /* clear the bss segment */
 	la a0, _edata
 	la a2, _end
@@ -55,6 +60,13 @@ _start:
 	call atexit
 	call __libc_init_array
 
+	call crt0_hart0_signal_ready
+	j .Lenter_main
+
+.Lhart_wait_init:
+	call crt0_wait_ready
+
+.Lenter_main:
 /* call main */
 //	lw a0, 0(sp)                    /* a0 = argc */
 //	addi a1, sp, __SIZEOF_POINTER__ /* a1 = argv */
