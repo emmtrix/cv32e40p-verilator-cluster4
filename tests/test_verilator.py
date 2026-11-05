@@ -92,6 +92,12 @@ def test_latency_test_pass() -> None:
     assert "[TB] CLUSTER EXIT SUCCESS" in output
 
 
+def test_dma_align_pass() -> None:
+    """Every source/destination alignment and a spread of lengths copy exactly."""
+    result = run_make("APP=dma-align-test", "run")
+    assert "DMA ALIGN TEST PASS" in result.stdout + result.stderr
+
+
 def test_latency_scratchpad_faster_than_shared() -> None:
     """Verify that measured scratchpad cycles < shared-memory cycles."""
     import re
