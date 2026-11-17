@@ -155,3 +155,57 @@ def test_stack_overflow_hits_guard_gap(stack_size: int | None, stack_top: int) -
     fault_addr = int(m.group(1), 16)
     # Core 0's guard gap: 0x1804_0000 .. 0x1807_FFFF, just below SPM_ADDR(1).
     assert 0x1804_0000 <= fault_addr < 0x1808_0000, hex(fault_addr)
+
+
+def parse_icache_test(output: str) -> tuple[int, int]:
+    import re
+
+    assert "ICACHE TEST PASS" in output, output
+    m = re.search(r"solo_cycles=(\d+) max_concurrent_cycles=(\d+)", output)
+    assert m is not None, output
+    return int(m.group(1)), int(m.group(2))
+
+
+def test_icache_concurrent_loops_do_not_stall() -> None:
+    """With per-core instruction caches, four cores running the same loop at
+    once are as fast as one core alone (no shared fetch port contention)."""
+    result = run_make("APP=icache-test", "run")
+    solo, concurrent = parse_icache_test(result.stdout + result.stderr)
+
+    assert concurrent <= solo * 1.01, (solo, concurrent)
+
+
+def check_icache_fencei(output: str, expect_stale: bool) -> None:
+    import re
+
+    assert "ICACHE FENCEI TEST PASS" in output, output
+    assert "[TB] CLUSTER EXIT SUCCESS" in output, output
+
+    rows = re.findall(
+        r"STALE hart=(\d+) (nofence|plainfence)_observed=(\d+) old=(\d+) new=(\d+)",
+        output,
+    )
+    assert len(rows) == 8, output
+    for hart, kind, observed, old, new in rows:
+        want = old if expect_stale else new
+        assert observed == want, f"hart {hart} {kind}: observed {observed}, expected {want}"
+
+
+def test_icache_fencei() -> None:
+    """Code rewritten by stores, DMA or another core runs after fence.i; without
+    fence.i, or with a plain fence, the cached old code keeps running."""
+    result = run_make("APP=icache-fencei-test", "run")
+    check_icache_fencei(result.stdout + result.stderr, expect_stale=True)
+
+
+def test_icache_disabled() -> None:
+    """ICACHE=0 fetches straight from the shared port: rewritten code is seen
+    immediately and concurrent loops contend for fetch bandwidth."""
+    build = ["BUILD_DIR=build/icache-off", "ICACHE=0"]
+
+    result = run_make(*build, "APP=icache-fencei-test", "run")
+    check_icache_fencei(result.stdout + result.stderr, expect_stale=False)
+
+    result = run_make(*build, "APP=icache-test", "run")
+    solo, concurrent = parse_icache_test(result.stdout + result.stderr)
+    assert concurrent > solo * 2, (solo, concurrent)
