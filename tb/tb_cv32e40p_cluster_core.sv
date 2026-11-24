@@ -11,7 +11,11 @@ module tb_cv32e40p_cluster_core #(
     // 2**SPM_ADDR_WIDTH is left unmapped and acts as a stack guard gap.
     parameter int unsigned SPM_STRIDE_WIDTH = 19,
     parameter logic [31:0] SPM_BASE_ADDR = 32'h1800_0000,
-    parameter int unsigned DMA_QUEUE_SLOTS = 3
+    parameter int unsigned DMA_QUEUE_SLOTS = 3,
+    parameter bit          ICACHE_ENABLE = 1'b1,
+    parameter int unsigned ICACHE_SIZE_BYTES = 4096,
+    parameter int unsigned ICACHE_LINE_BYTES = 16,
+    parameter int unsigned ICACHE_WAYS = 2
 ) (
     input  logic clk_i,
     input  logic rst_ni,
@@ -96,6 +100,10 @@ module tb_cv32e40p_cluster_core #(
     logic dma_busy;
     logic dma_mmio_rvalid_q;
 
+    tb_mem_types_pkg::tb_mem_req_t core_instr_req;
+    tb_mem_types_pkg::tb_mem_rsp_t core_instr_rsp;
+    logic                          icache_flush;
+
     logic [1:0] core_req_class;
     logic [1:0] outstanding_class_q;
     logic [2:0] outstanding_cnt_q;
@@ -118,11 +126,11 @@ module tb_cv32e40p_cluster_core #(
         .hart_id_i          (CORE_ID),
         .dm_exception_addr_i(32'h1A111000),
 
-        .instr_req_o        (instr_req_o.req),
-        .instr_gnt_i        (instr_rsp_i.gnt),
-        .instr_rvalid_i     (instr_rsp_i.rvalid),
-        .instr_addr_o       (instr_req_o.addr),
-        .instr_rdata_i      (instr_rsp_i.rdata),
+        .instr_req_o        (core_instr_req.req),
+        .instr_gnt_i        (core_instr_rsp.gnt),
+        .instr_rvalid_i     (core_instr_rsp.rvalid),
+        .instr_addr_o       (core_instr_req.addr),
+        .instr_rdata_i      (core_instr_rsp.rdata),
 
         .data_req_o         (core_data_req),
         .data_gnt_i         (core_data_gnt),
@@ -144,9 +152,43 @@ module tb_cv32e40p_cluster_core #(
         .core_sleep_o       ()
     );
 
-    assign instr_req_o.we    = 1'b0;
-    assign instr_req_o.be    = '0;
-    assign instr_req_o.wdata = '0;
+    assign core_instr_req.we    = 1'b0;
+    assign core_instr_req.be    = 4'b1111;
+    assign core_instr_req.wdata = '0;
+
+    // CV32E40P has no fence.i output (unlike CV32E40X/S, which have a
+    // fencei_flush_req_o/ack_i handshake). Its fence.i is a jump to pc+4 that
+    // only flushes the internal prefetch buffer: the controller sets pc_set
+    // with pc_mux = PC_FENCEI once all earlier instructions, including
+    // stores, have been granted on the data port. Tap that event to
+    // invalidate this core's instruction cache.
+    //
+    // The decoder also maps a plain FENCE onto the same path ("FENCE.I
+    // instead, a bit more conservative"). FENCE does not order instruction
+    // fetch, so only flush when the fence was a FENCE.I (funct3 001). The
+    // controller issues the PC_FENCEI jump from its FLUSH_WB state while the
+    // fence is still held in ID, so ID's instruction word identifies it.
+    localparam logic [2:0] FUNCT3_FENCEI = 3'b001;
+
+    assign icache_flush = cv32e40p_top_i.core_i.pc_set &&
+                          (cv32e40p_top_i.core_i.pc_mux_id == cv32e40p_pkg::PC_FENCEI) &&
+                          (cv32e40p_top_i.core_i.id_stage_i.instr[14:12] == FUNCT3_FENCEI);
+
+    tb_icache #(
+        .ENABLE     (ICACHE_ENABLE),
+        .SIZE_BYTES (ICACHE_SIZE_BYTES),
+        .LINE_BYTES (ICACHE_LINE_BYTES),
+        .WAYS       (ICACHE_WAYS),
+        .CORE_ID    (CORE_ID)
+    ) icache_i (
+        .clk_i      (clk_i),
+        .rst_ni     (rst_ni),
+        .flush_i    (icache_flush),
+        .core_req_i (core_instr_req),
+        .core_rsp_o (core_instr_rsp),
+        .mem_req_o  (instr_req_o),
+        .mem_rsp_i  (instr_rsp_i)
+    );
 
     // Addresses in a guard gap are not SPM; they fall through to the shared
     // path, where mm_ram flags them as unmapped.

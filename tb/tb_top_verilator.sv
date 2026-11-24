@@ -1,7 +1,13 @@
 // SPDX-FileCopyrightText: 2024 emmtrix Technologies GmbH
 // SPDX-License-Identifier: Apache-2.0
 
-module tb_top_verilator (
+module tb_top_verilator #(
+    // Per-core instruction cache (set from the Makefile via -G).
+    parameter bit          ICACHE_ENABLE = 1'b1,
+    parameter int unsigned ICACHE_SIZE_BYTES = 4096,
+    parameter int unsigned ICACHE_LINE_BYTES = 16,
+    parameter int unsigned ICACHE_WAYS = 2
+) (
     input logic clk_i,
     input logic rst_ni,
     input logic fetch_enable_i,
@@ -58,7 +64,12 @@ module tb_top_verilator (
         end
     end
 
-    tb_cv32e40p_cluster_wrapper tb_cv32e40p_cluster_wrapper_i (
+    tb_cv32e40p_cluster_wrapper #(
+        .ICACHE_ENABLE    (ICACHE_ENABLE),
+        .ICACHE_SIZE_BYTES(ICACHE_SIZE_BYTES),
+        .ICACHE_LINE_BYTES(ICACHE_LINE_BYTES),
+        .ICACHE_WAYS      (ICACHE_WAYS)
+    ) tb_cv32e40p_cluster_wrapper_i (
         .clk_i(clk_i),
         .rst_ni(rst_ni),
         .fetch_enable_i(fetch_enable_i),

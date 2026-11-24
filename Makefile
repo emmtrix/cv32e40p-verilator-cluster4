@@ -55,6 +55,7 @@ SV_TB_SRCS := \
 	tb/rr_arbiter.sv \
 	tb/tb_event_unit.sv \
 	tb/tb_shared_latency_pipe.sv \
+	tb/tb_icache.sv \
 	tb/tb_riscv/include/perturbation_defines.sv \
 	tb/tb_riscv/riscv_rvalid_stall.sv \
 	tb/tb_riscv/riscv_gnt_stall.sv \
@@ -64,6 +65,18 @@ SV_TB_SRCS := \
 
 CPP_TB_SRC := $(abspath tb/tb_top_verilator.cpp)
 SIM_EXE := $(VERI_OBJ_DIR)/Vtb_top_verilator
+
+# Per-core instruction cache. ICACHE=0 removes the caches, so every fetch goes
+# straight to the shared instruction port.
+ICACHE ?= 1
+ICACHE_SIZE ?= 4096
+ICACHE_LINE ?= 16
+ICACHE_WAYS ?= 2
+ICACHE_PARAMS := -GICACHE_ENABLE=$(ICACHE) -GICACHE_SIZE_BYTES=$(ICACHE_SIZE) \
+	-GICACHE_LINE_BYTES=$(ICACHE_LINE) -GICACHE_WAYS=$(ICACHE_WAYS)
+
+# Rewritten only when the cache parameters change, so the model re-verilates.
+VERI_PARAMS_STAMP := $(VERI_BUILD_DIR)/params.stamp
 
 MAXCYCLES ?= 20000000
 VERI_CFLAGS ?= -O2
@@ -106,13 +119,17 @@ $(STACK_SIZE_STAMP): FORCE | $(FW_BUILD_DIR)
 
 verilate: $(SIM_EXE)
 
-$(SIM_EXE): $(SV_TB_SRCS) $(CPP_TB_SRC) $(MANIFEST) | $(VERI_BUILD_DIR)
+$(VERI_PARAMS_STAMP): FORCE | $(VERI_BUILD_DIR)
+	@echo '$(ICACHE_PARAMS)' | cmp -s - $@ || echo '$(ICACHE_PARAMS)' > $@
+
+$(SIM_EXE): $(SV_TB_SRCS) $(CPP_TB_SRC) $(MANIFEST) $(VERI_PARAMS_STAMP) | $(VERI_BUILD_DIR)
 	DESIGN_RTL_DIR=$(RTL_DIR) $(VERILATOR) --cc --sv --exe \
 		--top-module tb_top_verilator \
 		--Wno-lint --Wno-UNOPTFLAT --Wno-MODDUP \
 		--Wno-BLKANDNBLK --Wno-MULTIDRIVEN --Wno-COMBDLY \
 		$(VERI_TRACE) \
-		$(SV_TB_SRCS) -f $(MANIFEST) $(CPP_TB_SRC) \
+		$(ICACHE_PARAMS) \
+		-f $(MANIFEST) $(SV_TB_SRCS) $(CPP_TB_SRC) \
 		--Mdir $(VERI_OBJ_DIR) \
 		-CFLAGS "-std=gnu++14 $(VERI_CFLAGS)"
 	$(MAKE) -C $(VERI_OBJ_DIR) -f Vtb_top_verilator.mk

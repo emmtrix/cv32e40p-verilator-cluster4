@@ -13,7 +13,11 @@ module tb_cv32e40p_cluster_wrapper #(
     parameter int unsigned SPM_STRIDE_WIDTH = 19,
     parameter logic [31:0] SPM_BASE_ADDR = 32'h1800_0000,
     parameter int unsigned SHARED_MEM_EXTRA_LATENCY = 20,
-    parameter int unsigned DMA_QUEUE_SLOTS = 3
+    parameter int unsigned DMA_QUEUE_SLOTS = 3,
+    parameter bit          ICACHE_ENABLE = 1'b1,
+    parameter int unsigned ICACHE_SIZE_BYTES = 4096,
+    parameter int unsigned ICACHE_LINE_BYTES = 16,
+    parameter int unsigned ICACHE_WAYS = 2
 ) (
     input  logic clk_i,
     input  logic rst_ni,
@@ -94,7 +98,11 @@ module tb_cv32e40p_cluster_wrapper #(
                 .SPM_ADDR_WIDTH   (SPM_ADDR_WIDTH),
                 .SPM_STRIDE_WIDTH (SPM_STRIDE_WIDTH),
                 .SPM_BASE_ADDR    (SPM_BASE_ADDR),
-                .DMA_QUEUE_SLOTS  (DMA_QUEUE_SLOTS)
+                .DMA_QUEUE_SLOTS  (DMA_QUEUE_SLOTS),
+                .ICACHE_ENABLE    (ICACHE_ENABLE),
+                .ICACHE_SIZE_BYTES(ICACHE_SIZE_BYTES),
+                .ICACHE_LINE_BYTES(ICACHE_LINE_BYTES),
+                .ICACHE_WAYS      (ICACHE_WAYS)
             ) core_i (
                 .clk_i              (clk_i),
                 .rst_ni             (rst_ni),
@@ -144,6 +152,10 @@ module tb_cv32e40p_cluster_wrapper #(
         .req_valid_o(data_req_valid)
     );
 
+    // Address on the shared fetch port. With instruction caches enabled these
+    // are line refill addresses, not core fetch PCs, and cache hits never
+    // appear here. Its only consumer (mm_ram's PC-triggered random interrupt
+    // generator) is compiled out under Verilator.
     assign instr_pc_shared = instr_req_valid ? core_instr_req[instr_req_idx].addr : '0;
 
     assign data_req_is_spm =

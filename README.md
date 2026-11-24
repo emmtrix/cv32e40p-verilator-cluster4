@@ -7,6 +7,7 @@ A standalone testbench for a 4-core CV32E40P cluster.
 - 4 CV32E40P cores
 - 64MB Shared Memory, 20 Cycle Latency
 - Each core has a 256kB scratchpad memory, local path fast
+- Each core has a private 4kB instruction cache (2-way, LRU, 16B lines, `tb/tb_icache.sv`): hits take 1 cycle, misses refill the line through the single shared fetch port, and `fence.i` (not a plain `fence`) invalidates it; configure with `make ICACHE=0|1 ICACHE_SIZE=4096 ICACHE_LINE=16 ICACHE_WAYS=2`
 - Each scratchpad memory is accessible by all cores
 
 ## Memory Map

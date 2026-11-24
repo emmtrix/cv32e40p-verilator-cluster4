@@ -50,6 +50,7 @@ int main(int argc, char** argv) {
     delete tfp;
 #endif
 
+    top->final();
     delete top;
     return 0;
 }
