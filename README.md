@@ -115,11 +115,11 @@ The flow defines `SYNTHESIS`, which compiles out the simulation-only parts of
 the testbench (firmware loading, plusargs, prints, DPI, randomized stalls). The
 icache parameters work as for `make verilate`, e.g. `make synth ICACHE=0`.
 
-Inferred memories (shared RAM, scratchpads) are kept as generic `$mem_v2`
-cells instead of being expanded into flip-flops; see `synth/generic.ys`.
-The icache arrays are currently turned into flip-flops, since Yosys cannot infer
-a memory from the always_ff block with asynchronous reset that writes them.
-The full run takes about 25 minutes and roughly 6 GB of RAM.
+Inferred memories (shared RAM, scratchpads, icache data and tag arrays) are
+kept as generic `$mem_v2` cells instead of being expanded into flip-flops; see
+`synth/generic.ys`. Yosys only infers a memory from an array that is not
+accessed from a process with asynchronous reset, so keep such arrays in their
+own `always_ff @(posedge clk_i)` block.
 
 Outputs in `build/synth/`:
 

@@ -89,6 +89,7 @@ module tb_icache #(
 
             logic              rvalid_q;
             logic [31:0]       rdata_q;
+            logic [31:0]       hit_word;
 
             logic [SET_W-1:0]  req_set;
             logic [TAG_W-1:0]  req_tag;
@@ -211,7 +212,7 @@ module tb_icache #(
                     rvalid_q <= core_gnt;
 
                     if (core_gnt) begin
-                        rdata_q     <= data_q[req_set][hit_way][req_word];
+                        rdata_q     <= hit_word;
                         stat_hits_q <= stat_hits_q + 1;
                     end
 
@@ -239,11 +240,8 @@ module tb_icache #(
                             end
                             if (fill_done) begin
                                 state_q <= S_IDLE;
-                                if (install) begin
-                                    data_q[fill_set][victim_way]  <= fill_line;
-                                    tag_q[fill_set][victim_way]   <= fill_tag;
+                                if (install)
                                     valid_q[fill_set][victim_way] <= 1'b1;
-                                end
                             end
                         end
                         default: state_q <= S_IDLE;
@@ -256,6 +254,18 @@ module tb_icache #(
                     end
                 end
             end
+
+            // The data and tag arrays are neither reset nor touched by the
+            // process above, so synthesis can keep them as memories instead
+            // of flip-flops. install implies fill_done, i.e. S_REFILL.
+            always_ff @(posedge clk_i) begin
+                if (install) begin
+                    data_q[fill_set][victim_way] <= fill_line;
+                    tag_q[fill_set][victim_way]  <= fill_tag;
+                end
+            end
+
+            assign hit_word = data_q[req_set][hit_way][req_word];
 
 `ifndef SYNTHESIS
             final begin
