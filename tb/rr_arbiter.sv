@@ -21,6 +21,15 @@ module rr_arbiter #(
     output logic                            req_valid_o
 );
 
+    // The FIFO pointers are FIFO_PTR_W bits wide and wrap by overflowing, so
+    // they only cover the whole FIFO when FIFO_DEPTH is a power of two. A depth
+    // of 1 would make the pointers zero bits wide.
+    if (FIFO_DEPTH < 2 || (FIFO_DEPTH & (FIFO_DEPTH - 1)) != 0 ||
+        FIFO_PTR_W != $clog2(FIFO_DEPTH)) begin : g_bad_fifo_depth
+        $fatal(1, "rr_arbiter: FIFO_DEPTH (%0d) must be a power of two >= 2 and FIFO_PTR_W (%0d) must be $clog2(FIFO_DEPTH)",
+               FIFO_DEPTH, FIFO_PTR_W);
+    end
+
     logic [IDX_W-1:0] rr_q;
 
     logic [IDX_W-1:0] rsp_fifo [FIFO_DEPTH-1:0];
@@ -28,9 +37,15 @@ module rr_arbiter #(
     logic [FIFO_PTR_W-1:0] rsp_rptr_q;
     logic [FIFO_PTR_W:0]   rsp_count_q;
 
+    logic                  rsp_full;
     logic                  rsp_push;
     logic                  rsp_pop;
     logic [IDX_W-1:0]      rsp_pop_idx;
+
+    // Every granted request needs a FIFO slot to route its response back. With
+    // the FIFO full, stop arbitrating so no request reaches the downstream
+    // port and no requester sees a grant until a response frees a slot.
+    assign rsp_full = (rsp_count_q == (FIFO_PTR_W+1)'(FIFO_DEPTH));
 
     always_comb begin
         req_idx_o   = rr_q;
@@ -40,7 +55,7 @@ module rr_arbiter #(
             int unsigned idx;
             idx = int'(rr_q) + ofs;
             if (idx >= NUM_REQ) idx -= NUM_REQ;
-            if (!req_valid_o && req_i[idx].req && req_mask_i[idx]) begin
+            if (!rsp_full && !req_valid_o && req_i[idx].req && req_mask_i[idx]) begin
                 req_valid_o = 1'b1;
                 req_idx_o   = idx[IDX_W-1:0];
             end
@@ -65,7 +80,7 @@ module rr_arbiter #(
         end
     end
 
-    assign rsp_push    = req_valid_o && rsp_i.gnt && (rsp_count_q < FIFO_DEPTH);
+    assign rsp_push    = req_valid_o && rsp_i.gnt;
     assign rsp_pop     = rsp_i.rvalid && (rsp_count_q != 0);
     assign rsp_pop_idx = rsp_fifo[rsp_rptr_q];
 
