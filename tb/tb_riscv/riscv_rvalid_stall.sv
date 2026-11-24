@@ -27,6 +27,16 @@
 //
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Both the Verilator and the Yosys flow use the reduced testbench model without
+// UVM, randomized stalls or delays.
+`ifndef TB_NO_UVM
+`ifdef VERILATOR
+`define TB_NO_UVM
+`elsif SYNTHESIS
+`define TB_NO_UVM
+`endif
+`endif
+
 module riscv_rvalid_stall(
     // Clock, reset
     input               clk_i,
@@ -88,7 +98,7 @@ int i;
 // -----------------------------------------------------------------------------------------------
 // Tasks and functions
 // -----------------------------------------------------------------------------------------------
-`ifndef VERILATOR
+`ifndef TB_NO_UVM
 function logic [FIFO_DELAY_WL-1:0] get_random_delay();
     if (!en_stall_i)
         get_random_delay = 0;
@@ -131,7 +141,7 @@ always @(posedge clk_i or negedge rst_ni) begin
         if (fifo_push) begin
             fifo[wptr[FIFO_PTR_WL-2:0]] = {
                 we_i,
-`ifdef VERILATOR
+`ifdef TB_NO_UVM
                 4'h0,
 `else
                 get_random_delay(),

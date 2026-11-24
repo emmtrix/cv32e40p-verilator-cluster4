@@ -15,9 +15,13 @@ module tb_top_verilator #(
     output logic tests_failed_o
 );
 
-    int unsigned cycle_cnt_q;
     logic exit_valid;
     logic [31:0] exit_value;
+
+    // Firmware loading, the cycle limit and the exit checks only exist in
+    // simulation.
+`ifndef SYNTHESIS
+    int unsigned cycle_cnt_q;
 
     initial begin : load_prog
         logic [1023:0] firmware;
@@ -63,6 +67,7 @@ module tb_top_verilator #(
             end
         end
     end
+`endif
 
     tb_cv32e40p_cluster_wrapper #(
         .ICACHE_ENABLE    (ICACHE_ENABLE),

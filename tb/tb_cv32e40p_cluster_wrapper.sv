@@ -78,6 +78,7 @@ module tb_cv32e40p_cluster_wrapper #(
     logic                  data_pending_is_spm_q;
     logic [CORE_IDX_W-1:0] data_pending_spm_target_q;
 
+`ifndef SYNTHESIS
     initial begin : checks
         if (SPM_STRIDE_WIDTH <= SPM_ADDR_WIDTH)
             $fatal(1, "[CLUSTER] SPM_STRIDE_WIDTH must be greater than SPM_ADDR_WIDTH (guard gap required)");
@@ -86,6 +87,7 @@ module tb_cv32e40p_cluster_wrapper #(
         if (INSTR_RDATA_WIDTH != 32)
             $fatal(1, "[CLUSTER] Struct refactor currently expects INSTR_RDATA_WIDTH=32");
     end
+`endif
 
     genvar g_core;
     generate

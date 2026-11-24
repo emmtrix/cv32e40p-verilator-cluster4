@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 emmtrix Technologies GmbH
+# SPDX-License-Identifier: Apache-2.0
+#
+# Technology-independent synthesis down to Yosys' internal gate library
+# ($_AND_, $_OR_, $_MUX_, $_DFF_*, ...). Expects the design to be read and
+# `hierarchy -top` to have been run already (see the `synth` Makefile target).
+#
+# Inferred memories are kept as generic $mem_v2 cells instead of being
+# expanded into flip-flops: the 64 MiB shared RAM and the 256 KiB scratchpads
+# are far too large for that, and they stand in for SRAM macros anyway.
+
+# Coarse-grain synthesis (proc, fsm, alumacc, share, memory -nomap, ...).
+synth -run begin:fine
+
+# Fine-grain synthesis as in `synth`, minus memory_map.
+opt -fast -full
+opt -full
+techmap
+opt -fast
+abc
+opt -fast
+
+hierarchy -check
+check

@@ -58,6 +58,7 @@ module tb_icache #(
             localparam int unsigned WAY_W      = (WAYS > 1) ? $clog2(WAYS) : 1;
             localparam int unsigned CNT_W      = $clog2(LINE_WORDS + 1);
 
+`ifndef SYNTHESIS
             initial begin : checks
                 if (LINE_BYTES < 4 || (LINE_BYTES & (LINE_BYTES - 1)) != 0)
                     $fatal(1, "[ICACHE] LINE_BYTES must be a power of two >= 4");
@@ -66,6 +67,7 @@ module tb_icache #(
                 if (SETS < 1 || (SETS & (SETS - 1)) != 0 || SETS * WAYS * LINE_BYTES != SIZE_BYTES)
                     $fatal(1, "[ICACHE] SIZE_BYTES / (LINE_BYTES * WAYS) must be a power of two");
             end
+`endif
 
             typedef enum logic { S_IDLE, S_REFILL } state_e;
 
@@ -255,10 +257,12 @@ module tb_icache #(
                 end
             end
 
+`ifndef SYNTHESIS
             final begin
                 $display("[ICACHE] core %0d: hits=%0d misses=%0d flushes=%0d flushes_during_refill=%0d",
                          CORE_ID, stat_hits_q, stat_misses_q, stat_flushes_q, stat_refill_flushes_q);
             end
+`endif
         end
     endgenerate
 

@@ -82,7 +82,7 @@ MAXCYCLES ?= 20000000
 VERI_CFLAGS ?= -O2
 VERI_TRACE ?=
 
-.PHONY: all run firmware verilate clean FORCE
+.PHONY: all run firmware verilate synth clean FORCE
 
 all: run
 
@@ -134,11 +134,52 @@ $(SIM_EXE): $(SV_TB_SRCS) $(CPP_TB_SRC) $(MANIFEST) $(VERI_PARAMS_STAMP) | $(VER
 		-CFLAGS "-std=gnu++14 $(VERI_CFLAGS)"
 	$(MAKE) -C $(VERI_OBJ_DIR) -f Vtb_top_verilator.mk
 
+# Generic gate-level synthesis with Yosys. sv2v first converts the
+# SystemVerilog sources to Verilog because Yosys' own frontend cannot parse
+# them; SYNTHESIS compiles out the simulation-only parts of the testbench.
+SV2V ?= sv2v
+YOSYS ?= yosys
+SYNTH_TOP ?= tb_top_verilator
+SYNTH_BUILD_DIR := $(BUILD_DIR)/synth
+SYNTH_SCRIPT := synth/generic.ys
+SYNTH_SV2V_OUT := $(SYNTH_BUILD_DIR)/$(SYNTH_TOP).sv2v.v
+SYNTH_NETLIST := $(SYNTH_BUILD_DIR)/$(SYNTH_TOP).gates.v
+SYNTH_STAT := $(SYNTH_BUILD_DIR)/$(SYNTH_TOP).stat.txt
+SYNTH_LOG := $(SYNTH_BUILD_DIR)/yosys.log
+
+# Core sources from the manifest, minus the simulation-only tracer package and
+# tb wrapper. The behavioural clock gate stays in as a generic latch + AND.
+SYNTH_RTL_SRCS := $(filter-out %/cv32e40p_tracer_pkg.sv %/cv32e40p_tb_wrapper.sv, \
+	$(subst $${DESIGN_RTL_DIR},$(RTL_DIR),$(shell grep -E '^[^/+].*\.sv$$' $(MANIFEST))))
+SYNTH_INCDIRS := $(RTL_DIR)/include $(RTL_DIR)/../bhv $(RTL_DIR)/../bhv/include
+
+SYNTH_CHPARAMS := -chparam ICACHE_ENABLE $(ICACHE) -chparam ICACHE_SIZE_BYTES $(ICACHE_SIZE) \
+	-chparam ICACHE_LINE_BYTES $(ICACHE_LINE) -chparam ICACHE_WAYS $(ICACHE_WAYS)
+
+synth: $(SYNTH_NETLIST)
+
+$(SYNTH_SV2V_OUT): $(SYNTH_RTL_SRCS) $(SV_TB_SRCS) $(MANIFEST) | $(SYNTH_BUILD_DIR)
+	$(SV2V) --define=SYNTHESIS $(addprefix --incdir=,$(SYNTH_INCDIRS)) \
+		--top=$(SYNTH_TOP) $(SYNTH_RTL_SRCS) $(SV_TB_SRCS) > $@
+
+SYNTH_YOSYS_CMDS := \
+	read_verilog -DSYNTHESIS $(SYNTH_SV2V_OUT); \
+	hierarchy -check -top $(SYNTH_TOP) $(SYNTH_CHPARAMS); \
+	script $(SYNTH_SCRIPT); \
+	tee -o $(SYNTH_STAT) stat -top $(SYNTH_TOP); \
+	write_verilog -noattr $(SYNTH_NETLIST)
+
+$(SYNTH_NETLIST): $(SYNTH_SV2V_OUT) $(SYNTH_SCRIPT) $(VERI_PARAMS_STAMP)
+	$(YOSYS) -q -l $(SYNTH_LOG) -p '$(SYNTH_YOSYS_CMDS)'
+
 $(FW_BUILD_DIR):
 	mkdir -p $(FW_BUILD_DIR)
 
 $(VERI_BUILD_DIR):
 	mkdir -p $(VERI_BUILD_DIR)
+
+$(SYNTH_BUILD_DIR):
+	mkdir -p $(SYNTH_BUILD_DIR)
 
 clean:
 	rm -rf $(BUILD_DIR)
