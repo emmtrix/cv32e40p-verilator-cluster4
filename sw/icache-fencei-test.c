@@ -23,6 +23,12 @@
  * The stale results depend on the instruction cache being present, so they
  * are printed (STALE ... observed=...) and checked by the pytest, which knows
  * the cache configuration. Everything else must hold with and without cache.
+ *
+ * The evict case and the line-straddling entry assume the default cache
+ * geometry (4 KiB, 2 ways, 16-byte lines: buffers 4 KiB apart share a set,
+ * which is more than enough for 2 ways). With other ICACHE_* settings the
+ * functional checks still pass but no longer exercise eviction or a line
+ * crossing; the pytest always builds with the defaults.
  */
 
 #include <inttypes.h>

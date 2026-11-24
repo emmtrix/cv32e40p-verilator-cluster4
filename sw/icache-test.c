@@ -11,7 +11,7 @@
  *                  barrier.
  *   2. concurrent: all harts run the same loop at the same time.
  *
- * Each measurement is preceded by an untimed warm-up run of the loop, so with
+ * Each measurement is preceded by an untimed warm-up run, so with
  * per-core instruction caches the timed run should see no fetch stalls and
  * the concurrent run should be as fast as the solo run.
  *
@@ -41,7 +41,8 @@ static inline uint32_t read_mcycle(void) {
 }
 
 /* Register-only loop body: xorshift plus a few ALU ops. */
-static __attribute__((noinline)) uint32_t compute_loop(uint32_t seed, uint32_t iters) {
+/* noipa: stop GCC from treating the loop as const and merging repeated calls. */
+static __attribute__((noipa)) uint32_t compute_loop(uint32_t seed, uint32_t iters) {
     uint32_t x = seed;
     uint32_t acc = 0u;
     for (uint32_t i = 0u; i < iters; ++i) {
@@ -54,17 +55,22 @@ static __attribute__((noinline)) uint32_t compute_loop(uint32_t seed, uint32_t i
     return acc;
 }
 
+/*
+ * The timed sequence runs twice and only the second run is kept: the first
+ * run brings everything inside the timed window (the loop and the code around
+ * the call) into the instruction cache.
+ */
 static void measure(uint32_t *cycles, uint32_t *imiss, uint32_t *sum) {
-    (void)compute_loop(0x12345678u, LOOP_ITERS); /* warm-up */
+    for (uint32_t run = 0u; run < 2u; ++run) {
+        cl_perf_mhpmcounter3_config(CL_MHPM_EVENT_IMISS);
+        uint32_t t0 = read_mcycle();
+        *sum = compute_loop(0x12345678u, LOOP_ITERS);
+        uint32_t t1 = read_mcycle();
+        cl_perf_mhpmcounter3_disable();
 
-    cl_perf_mhpmcounter3_config(CL_MHPM_EVENT_IMISS);
-    uint32_t t0 = read_mcycle();
-    *sum = compute_loop(0x12345678u, LOOP_ITERS);
-    uint32_t t1 = read_mcycle();
-    cl_perf_mhpmcounter3_disable();
-
-    *cycles = t1 - t0;
-    *imiss = cl_read_csr_mhpmcounter3();
+        *cycles = t1 - t0;
+        *imiss = cl_read_csr_mhpmcounter3();
+    }
 }
 
 int main(void) {

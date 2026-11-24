@@ -129,7 +129,7 @@ $(SIM_EXE): $(SV_TB_SRCS) $(CPP_TB_SRC) $(MANIFEST) $(VERI_PARAMS_STAMP) | $(VER
 		--Wno-BLKANDNBLK --Wno-MULTIDRIVEN --Wno-COMBDLY \
 		$(VERI_TRACE) \
 		$(ICACHE_PARAMS) \
-		$(SV_TB_SRCS) -f $(MANIFEST) $(CPP_TB_SRC) \
+		-f $(MANIFEST) $(SV_TB_SRCS) $(CPP_TB_SRC) \
 		--Mdir $(VERI_OBJ_DIR) \
 		-CFLAGS "-std=gnu++14 $(VERI_CFLAGS)"
 	$(MAKE) -C $(VERI_OBJ_DIR) -f Vtb_top_verilator.mk

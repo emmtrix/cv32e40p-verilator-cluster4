@@ -165,29 +165,14 @@ module tb_cv32e40p_cluster_core #(
     //
     // The decoder also maps a plain FENCE onto the same path ("FENCE.I
     // instead, a bit more conservative"). FENCE does not order instruction
-    // fetch, so only flush when the decoded fence was a FENCE.I (funct3 001).
-    // funct3 is latched while the fence sits in ID; ID keeps it until the
-    // controller issues the jump.
-    // PC_FENCEI from cv32e40p_pkg (compiled after the testbench sources).
-    localparam logic [3:0] PC_FENCEI = 4'b0001;
+    // fetch, so only flush when the fence was a FENCE.I (funct3 001). The
+    // controller issues the PC_FENCEI jump from its FLUSH_WB state while the
+    // fence is still held in ID, so ID's instruction word identifies it.
     localparam logic [2:0] FUNCT3_FENCEI = 3'b001;
-    logic fence_is_fencei;
-    logic fence_is_fencei_q;
-
-    assign fence_is_fencei = cv32e40p_top_i.core_i.id_stage_i.fencei_insn_dec ?
-                             (cv32e40p_top_i.core_i.id_stage_i.instr[14:12] == FUNCT3_FENCEI) :
-                             fence_is_fencei_q;
-
-    always_ff @(posedge clk_i or negedge rst_ni) begin
-        if (!rst_ni)
-            fence_is_fencei_q <= 1'b0;
-        else
-            fence_is_fencei_q <= fence_is_fencei;
-    end
 
     assign icache_flush = cv32e40p_top_i.core_i.pc_set &&
-                          (cv32e40p_top_i.core_i.pc_mux_id == PC_FENCEI) &&
-                          fence_is_fencei;
+                          (cv32e40p_top_i.core_i.pc_mux_id == cv32e40p_pkg::PC_FENCEI) &&
+                          (cv32e40p_top_i.core_i.id_stage_i.instr[14:12] == FUNCT3_FENCEI);
 
     tb_icache #(
         .ENABLE     (ICACHE_ENABLE),

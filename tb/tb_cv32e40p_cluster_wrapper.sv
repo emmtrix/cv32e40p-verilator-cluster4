@@ -152,6 +152,10 @@ module tb_cv32e40p_cluster_wrapper #(
         .req_valid_o(data_req_valid)
     );
 
+    // Address on the shared fetch port. With instruction caches enabled these
+    // are line refill addresses, not core fetch PCs, and cache hits never
+    // appear here. Its only consumer (mm_ram's PC-triggered random interrupt
+    // generator) is compiled out under Verilator.
     assign instr_pc_shared = instr_req_valid ? core_instr_req[instr_req_idx].addr : '0;
 
     assign data_req_is_spm =

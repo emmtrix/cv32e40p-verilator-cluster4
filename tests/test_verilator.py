@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+import re
 import shutil
 import subprocess
 from functools import lru_cache
@@ -38,7 +39,9 @@ def make_env_overrides() -> dict[str, str]:
 
 
 def run_make(*args: str, expect_success: bool = True) -> subprocess.CompletedProcess[str]:
-    make_env = os.environ.copy()
+    # Drop cache settings inherited from the shell so every build uses the
+    # Makefile defaults unless a test passes them explicitly.
+    make_env = {k: v for k, v in os.environ.items() if not k.startswith("ICACHE")}
     make_env.update(make_env_overrides())
     result = subprocess.run(
         ["make", *args],
@@ -100,8 +103,6 @@ def test_dma_align_pass() -> None:
 
 def test_latency_scratchpad_faster_than_shared() -> None:
     """Verify that measured scratchpad cycles < shared-memory cycles."""
-    import re
-
     result = run_make("APP=latency-test", "run")
     output = result.stdout + result.stderr
 
@@ -137,8 +138,6 @@ def test_custom_stack_size_demo_pass() -> None:
 def test_stack_overflow_hits_guard_gap(stack_size: int | None, stack_top: int) -> None:
     """Hart 1's stack sits at the start of its SPM; overflowing it must fault
     in the unmapped guard gap that follows core 0's scratchpad."""
-    import re
-
     args = ["APP=stack-overflow-test", "run"]
     if stack_size is not None:
         args.append(f"STACK_SIZE={stack_size}")
@@ -158,8 +157,6 @@ def test_stack_overflow_hits_guard_gap(stack_size: int | None, stack_top: int) -
 
 
 def parse_icache_test(output: str) -> tuple[int, int]:
-    import re
-
     assert "ICACHE TEST PASS" in output, output
     m = re.search(r"solo_cycles=(\d+) max_concurrent_cycles=(\d+)", output)
     assert m is not None, output
@@ -176,8 +173,6 @@ def test_icache_concurrent_loops_do_not_stall() -> None:
 
 
 def check_icache_fencei(output: str, expect_stale: bool) -> None:
-    import re
-
     assert "ICACHE FENCEI TEST PASS" in output, output
     assert "[TB] CLUSTER EXIT SUCCESS" in output, output
 
