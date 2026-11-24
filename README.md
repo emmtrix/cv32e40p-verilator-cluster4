@@ -95,10 +95,37 @@ This behavior is documented in CV32E40P sleep docs:
 - `make APP=perfcounter-demo run` : use `mhpmcounter3` to compare pipeline stall counts for shared memory vs local scratchpad loads
 - `make APP=barrier-skew-demo run MAXCYCLES=20000000` : barrier stress test with one slow hart and other fast harts
 - `make verilate` : compile RTL/testbench with Verilator
+- `make synth` : synthesize the cluster to generic gates with Yosys (see below)
 - `make run MAXCYCLES=5000000` : run with a custom cycle limit
 - `make APP=scratchpad-demo run STACK_SIZE=8192` : run with an 8 KiB per-core stack
 - `make APP=stack-overflow-test run` : overflow hart 1's stack into the guard gap (expected to stop with `UNMAPPED WRITE ACCESS`)
 - `make clean` : remove build artifacts
+
+## Gate-level synthesis
+
+`make synth` synthesizes `tb_top_verilator` (the whole cluster, including the
+memory model) with Yosys into a technology-independent netlist of Yosys'
+internal gate cells (`$_AND_`, `$_MUX_`, `$_DFF_*`, ...). No cell library is
+involved. Requirements:
+
+- Yosys in `PATH`
+- [sv2v](https://github.com/zachjs/sv2v) in `PATH` (or `make synth SV2V=/path/to/sv2v`); the SystemVerilog sources are converted to Verilog first because Yosys' own frontend cannot parse them
+
+The flow defines `SYNTHESIS`, which compiles out the simulation-only parts of
+the testbench (firmware loading, plusargs, prints, DPI, randomized stalls). The
+icache parameters work as for `make verilate`, e.g. `make synth ICACHE=0`.
+
+Inferred memories (shared RAM, scratchpads, icache data and tag arrays) are
+kept as generic `$mem_v2` cells instead of being expanded into flip-flops; see
+`synth/generic.ys`. Yosys only infers a memory from an array that is not
+accessed from a process with asynchronous reset, so keep such arrays in their
+own `always_ff @(posedge clk_i)` block.
+
+Outputs in `build/synth/`:
+
+- `tb_top_verilator.gates.v` : gate-level netlist
+- `tb_top_verilator.stat.txt` : cell counts per module
+- `yosys.log` : Yosys log
 
 ## Optional waveform dump
 

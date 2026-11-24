@@ -27,8 +27,18 @@
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
+// Both the Verilator and the Yosys flow use the reduced testbench model without
+// UVM, randomized stalls or delays.
+`ifndef TB_NO_UVM
+`ifdef VERILATOR
+`define TB_NO_UVM
+`elsif SYNTHESIS
+`define TB_NO_UVM
+`endif
+`endif
+
 module riscv_gnt_stall
-`ifndef VERILATOR
+`ifndef TB_NO_UVM
  import perturbation_defines::*;
 `endif
  #(
@@ -68,7 +78,7 @@ int   delay_value;
 // Tasks and functions
 // -----------------------------------------------------------------------------------------------
 task set_delay_value();
-`ifndef VERILATOR
+`ifndef TB_NO_UVM
   if (!en_stall_i)
     delay_value = 0;
   else if (stall_mode_i == perturbation_defines::STANDARD)
@@ -105,7 +115,7 @@ always @(posedge clk_i or negedge rst_ni) begin
     grant_delay_cnt <= 0;
   end
   else begin
-`ifdef VERILATOR
+`ifdef TB_NO_UVM
     //#1;
 `else
     #(100ps);
@@ -113,7 +123,11 @@ always @(posedge clk_i or negedge rst_ni) begin
 
     // When request is removed, randomize gnt
     if (!req_core_i) begin
+`ifdef SYNTHESIS
+      grant_core_o <= 1'b0;
+`else
       grant_core_o <= $urandom; //@DVT_LINTER_WAIVER "MT20211214_2" disable SVTB.29.1.3.1
+`endif
     end
 
     // New request coming in

@@ -58,6 +58,7 @@ module tb_icache #(
             localparam int unsigned WAY_W      = (WAYS > 1) ? $clog2(WAYS) : 1;
             localparam int unsigned CNT_W      = $clog2(LINE_WORDS + 1);
 
+`ifndef SYNTHESIS
             initial begin : checks
                 if (LINE_BYTES < 4 || (LINE_BYTES & (LINE_BYTES - 1)) != 0)
                     $fatal(1, "[ICACHE] LINE_BYTES must be a power of two >= 4");
@@ -66,6 +67,7 @@ module tb_icache #(
                 if (SETS < 1 || (SETS & (SETS - 1)) != 0 || SETS * WAYS * LINE_BYTES != SIZE_BYTES)
                     $fatal(1, "[ICACHE] SIZE_BYTES / (LINE_BYTES * WAYS) must be a power of two");
             end
+`endif
 
             typedef enum logic { S_IDLE, S_REFILL } state_e;
 
@@ -87,6 +89,7 @@ module tb_icache #(
 
             logic              rvalid_q;
             logic [31:0]       rdata_q;
+            logic [31:0]       hit_word;
 
             logic [SET_W-1:0]  req_set;
             logic [TAG_W-1:0]  req_tag;
@@ -209,7 +212,7 @@ module tb_icache #(
                     rvalid_q <= core_gnt;
 
                     if (core_gnt) begin
-                        rdata_q     <= data_q[req_set][hit_way][req_word];
+                        rdata_q     <= hit_word;
                         stat_hits_q <= stat_hits_q + 1;
                     end
 
@@ -237,11 +240,8 @@ module tb_icache #(
                             end
                             if (fill_done) begin
                                 state_q <= S_IDLE;
-                                if (install) begin
-                                    data_q[fill_set][victim_way]  <= fill_line;
-                                    tag_q[fill_set][victim_way]   <= fill_tag;
+                                if (install)
                                     valid_q[fill_set][victim_way] <= 1'b1;
-                                end
                             end
                         end
                         default: state_q <= S_IDLE;
@@ -255,10 +255,24 @@ module tb_icache #(
                 end
             end
 
+            // The data and tag arrays are neither reset nor touched by the
+            // process above, so synthesis can keep them as memories instead
+            // of flip-flops. install implies fill_done, i.e. S_REFILL.
+            always_ff @(posedge clk_i) begin
+                if (install) begin
+                    data_q[fill_set][victim_way] <= fill_line;
+                    tag_q[fill_set][victim_way]  <= fill_tag;
+                end
+            end
+
+            assign hit_word = data_q[req_set][hit_way][req_word];
+
+`ifndef SYNTHESIS
             final begin
                 $display("[ICACHE] core %0d: hits=%0d misses=%0d flushes=%0d flushes_during_refill=%0d",
                          CORE_ID, stat_hits_q, stat_misses_q, stat_flushes_q, stat_refill_flushes_q);
             end
+`endif
         end
     endgenerate
 

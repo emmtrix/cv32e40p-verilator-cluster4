@@ -155,9 +155,11 @@ module tb_core_dma_engine #(
                 q_reps[q_tail_q] <= cfg_count_q;
                 q_tail_q <= next_tail;
                 q_count_q <= q_count_q + 1'b1;
+`ifndef SYNTHESIS
                 if ($test$plusargs("dma_debug"))
                     $display("[DMA] enqueue src=%08x dst=%08x len=%0d src_stride=%0d dst_stride=%0d count=%0d",
                              cfg_src_q, cfg_dst_q, cfg_len_i, cfg_src_stride_q, cfg_dst_stride_q, cfg_count_q);
+`endif
             end
 
             case (state_q)
@@ -174,10 +176,12 @@ module tb_core_dma_engine #(
                         if ((q_len[q_head_q] != 0) && (q_reps[q_head_q] != 0)) begin
                             cur_reps_left_q <= q_reps[q_head_q] - 1'b1;
                             state_q <= DMA_RD_REQ;
+`ifndef SYNTHESIS
                             if ($test$plusargs("dma_debug"))
                                 $display("[DMA] start src=%08x dst=%08x len=%0d src_stride=%0d dst_stride=%0d reps=%0d",
                                          q_src[q_head_q], q_dst[q_head_q], q_len[q_head_q],
                                          q_src_stride[q_head_q], q_dst_stride[q_head_q], q_reps[q_head_q]);
+`endif
                         end
                     end
                 end
@@ -208,8 +212,10 @@ module tb_core_dma_engine #(
                                 cur_dst_q <= cur_dst_q + step;
                                 cur_len_q <= cur_len_q - step;
                                 state_q <= DMA_IDLE;
+`ifndef SYNTHESIS
                                 if ($test$plusargs("dma_debug"))
                                     $display("[DMA] done");
+`endif
                             end else begin
                                 cur_src_q <= cur_src_q + step + (cur_src_stride_q - chunk_len_q);
                                 cur_dst_q <= cur_dst_q + step + (cur_dst_stride_q - chunk_len_q);

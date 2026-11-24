@@ -18,8 +18,18 @@
 // DVT LINTER waivers are fine because this is not a UVM component.
 //@DVT_LINTER_WAIVER_START "MT20210811_1" disable SVTB.29.1.3.1, SVTB.29.1.7
 
+// Both the Verilator and the Yosys flow use the reduced testbench model without
+// UVM, randomized stalls or delays.
+`ifndef TB_NO_UVM
+`ifdef VERILATOR
+`define TB_NO_UVM
+`elsif SYNTHESIS
+`define TB_NO_UVM
+`endif
+`endif
+
 module mm_ram
-`ifndef VERILATOR
+`ifndef TB_NO_UVM
   import uvm_pkg::*;
   `include "uvm_macros.svh"
 `endif
@@ -99,9 +109,11 @@ module mm_ram
     localparam int                        MMADDR_EU_EVT_WAIT     = MMADDR_EU_BASE + 32'h0080;
     localparam int                        MMADDR_EU_GPEVT_CLEAR  = MMADDR_EU_BASE + 32'h0084;
 
+`ifndef TB_NO_UVM
     // UVM info tags
     localparam string                     MM_RAM_TAG = "MM_RAM";
     localparam string                     RNDSTALL_TAG = "RNDSTALL";
+`endif
 
     // mux for read and writes
     enum logic [2:0]{RAM, MM, RND_STALL, ERR, RND_NUM, TICKS, EU_EVT} select_rdata_d, select_rdata_q;
@@ -201,6 +213,7 @@ module mm_ram
     //random or monitor interrupt request
     logic                          rnd_irq;
 
+`ifndef SYNTHESIS
     // used by dump_signature methods
     string                         sig_file;
     string                         sig_string;
@@ -208,6 +221,7 @@ module mm_ram
     int                            sig_fd;
     int                            errno;
     string                         error_str;
+`endif
 
     // Common code used by both reads and writes
     function void setup_transaction();
@@ -234,11 +248,12 @@ module mm_ram
     // uhh, align?
     always_comb data_addr_aligned = {data_addr_i[31:2], 2'b0};
 
+`ifndef SYNTHESIS
     always @(negedge rst_ni) begin : configure_stalls
         for (i = 0; i < RND_STALL_REGS; i=i+1) begin
             rnd_stall_regs[i] = 0;
         end
-`ifndef VERILATOR
+`ifndef TB_NO_UVM
         if (!$test$plusargs("rand_stall_obi_disable")) begin
             if ($test$plusargs("max_data_zero_instr_stall")) begin
                 `uvm_info(RNDSTALL_TAG, "Max data stall, zero instruction stall configuration", UVM_LOW)
@@ -293,8 +308,9 @@ module mm_ram
         `uvm_info(RNDSTALL_TAG, $sformatf("DATA  OBI stall max:    %0d", rnd_stall_regs[RND_STALL_DATA_MAX]), UVM_LOW)
 `endif
     end : configure_stalls
+`endif
 
-`ifndef VERILATOR
+`ifndef TB_NO_UVM
     function bit is_stall_sim();
         return rnd_stall_regs[RND_STALL_DATA_EN] || rnd_stall_regs[RND_STALL_INSTR_EN];
     endfunction : is_stall_sim
@@ -370,7 +386,7 @@ module mm_ram
 
                 end else if (data_addr_i == MMADDR_SIGDUMP) begin
                     // dump signature and halt
-`ifndef VERILATOR
+`ifndef TB_NO_UVM
                     if ($value$plusargs("signature=%s", sig_file)) begin
                         sig_fd = $fopen(sig_file, "w");
                         if (sig_fd == 0) begin
@@ -392,6 +408,7 @@ module mm_ram
                         end
                     end
                     `uvm_info(MM_RAM_TAG, $sformatf("Dumping signature:\n%s", sig_string), UVM_LOW)
+`elsif SYNTHESIS
 `else
                     if ($value$plusargs("signature=%s", sig_file)) begin
                         sig_fd = $fopen(sig_file, "w");
@@ -412,7 +429,7 @@ module mm_ram
                                                           dp_ram_i.mem[addr+1], dp_ram_i.mem[addr+0]);
                         end
                     end
-`endif // ifndef VERILATOR
+`endif // ifndef TB_NO_UVM
                     exit_valid_o = '1; // signal halt to testbench
                     exit_value_o = '0;
 
@@ -505,13 +522,15 @@ module mm_ram
         || data_addr_i == MMADDR_EU_GPEVT_CLEAR
         || data_addr_i[31:16] == MMADDR_RNDSTALL;
 
+`ifndef SYNTHESIS
     always_ff @(posedge clk_i) begin: unmapped_access_check
         if (rst_ni && data_req_i && data_gnt_o && !data_addr_mapped)
             $fatal(1, "[TB] UNMAPPED %s ACCESS addr=0x%08x",
                    data_we_i ? "WRITE" : "READ", data_addr_i);
     end
+`endif
 
-`ifndef VERILATOR
+`ifndef TB_NO_UVM
     // signal out of bound writes
     out_of_bounds_write: assert property
     (@(posedge clk_i) disable iff (~rst_ni)
@@ -546,7 +565,7 @@ module mm_ram
             data_rdata_mux = core_data_rdata;
         end else if(select_rdata_q == RND_STALL) begin
             data_rdata_mux = rnd_stall_rdata;
-`ifndef VERILATOR
+`ifndef TB_NO_UVM
             `uvm_fatal(MM_RAM_TAG, $sformatf("out of bounds read from %08x\nRandom stall generator is not supported with Verilator", data_addr_i));
 `endif
         end else if (select_rdata_q == RND_NUM) begin
@@ -555,7 +574,7 @@ module mm_ram
             data_rdata_mux = cycle_count_q;
         end else if (select_rdata_q == EU_EVT) begin
             data_rdata_mux = eu_read_rdata;
-`ifndef VERILATOR
+`ifndef TB_NO_UVM
         end else if (select_rdata_q == ERR) begin
             `uvm_error(MM_RAM_TAG, $sformatf("out of bounds read from %08x (RAM_ADDR_WIDTH=%0d; dm_halt_addri=%08x, DBG_ADDR_WIDTH=%0d)",
                                              data_addr_i, RAM_ADDR_WIDTH, dm_halt_addr_i, DBG_ADDR_WIDTH))
@@ -563,6 +582,7 @@ module mm_ram
         end
     end
 
+`ifndef SYNTHESIS
     // print to stdout pseudo peripheral
     always_ff @(posedge clk_i, negedge rst_ni) begin: print_peripheral
         if(print_valid) begin
@@ -578,6 +598,7 @@ module mm_ram
             end
         end
     end
+`endif
 
     assign irq_o    = irq_q | (rnd_irq << RND_IRQ_ID) | (eu_bar_irq << EU_BAR_IRQ_ID);
 
@@ -630,6 +651,11 @@ module mm_ram
     always @(posedge clk_i, negedge rst_ni) begin: tb_stall
         if(~rst_ni) begin
           rnd_stall_rdata  <= '0;
+`ifdef SYNTHESIS
+          // configure_stalls clears these in simulation.
+          for (int r = 0; r < RND_STALL_REGS; r++)
+            rnd_stall_regs[r] <= '0;
+`endif
         end else begin
           if(rnd_stall_req) begin
             if(rnd_stall_we)
@@ -664,7 +690,7 @@ module mm_ram
         if (!rst_ni)
             rnd_num <= 32'h0;
         else if (rnd_num_req)
-`ifndef VERILATOR
+`ifndef TB_NO_UVM
             rnd_num <= $urandom();
 `else
             rnd_num <= 32'h0;
@@ -699,7 +725,7 @@ module mm_ram
                if(debugger_wdata[15]) //If random start
                  // then set max random delay range to wdata[14:0]
                  // note, if wdata[14:0] == 0, then assign max random range to 128
-`ifndef VERILATOR
+`ifndef TB_NO_UVM
                  debugger_start_cnt_q <= $urandom_range(1,~|debugger_wdata[14:0] ? 128 : debugger_wdata[14:0]);
 `else
                  debugger_start_cnt_q <= 1;
@@ -717,7 +743,7 @@ module mm_ram
                  if(debugger_wdata[29]) // If random pulse width
                    // then set max random pulse width to wdata[28:16]
                    //  note, if wdata[28:16] ==0, then assign max to 128
-`ifndef VERILATOR
+`ifndef TB_NO_UVM
                    debug_req_duration_q <= $urandom_range(1,~|debugger_wdata[28:16] ? 128 : debugger_wdata[28:16]);
 `else
                    debugger_start_cnt_q <= 1;
@@ -747,12 +773,14 @@ module mm_ram
     end
 
     // -------------------------------------------------------------
+`ifndef SYNTHESIS
     // show writes if requested
     always_ff @(posedge clk_i, negedge rst_ni) begin: verbose_writes
         if ($test$plusargs("verbose") && data_req_i && data_we_i)
             $display("write addr=0x%08x: data=0x%08x",
                      data_addr_i, data_wdata_i);
     end
+`endif
 
     // instantiate the ram
     dp_ram
@@ -836,12 +864,20 @@ module mm_ram
   begin
     ram_instr_req    = instr_req_i;
     ram_instr_addr   = instr_addr_remap;
+`ifdef SYNTHESIS
+    ram_instr_gnt    = instr_req_i;
+`else
     ram_instr_gnt    = instr_req_i ? 1'b1 : $urandom;
+`endif
     core_instr_rdata = ram_instr_rdata;
 
     ram_data_req     = data_req_dec;
     ram_data_addr    = data_addr_dec;
+`ifdef SYNTHESIS
+    ram_data_gnt     = data_req_i;
+`else
     ram_data_gnt     = data_req_i ? 1'b1 : $urandom;
+`endif
     core_data_rdata  = ram_data_rdata;
     ram_data_wdata   = data_wdata_dec;
     ram_data_we      = data_we_dec;
@@ -901,7 +937,7 @@ module mm_ram
     .gnt_stall_i        ( rnd_stall_regs[RND_STALL_DATA_GNT]  )
     );
 
-`ifndef VERILATOR
+`ifndef TB_NO_UVM
     riscv_random_interrupt_generator
     random_interrupt_generator_i
     (
